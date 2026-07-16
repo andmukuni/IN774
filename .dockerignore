@@ -1,0 +1,29 @@
+# Dependencies & build output (rebuilt inside the image)
+node_modules
+dist
+
+# Local env & secrets — inject via Coolify env vars instead
+.env
+.env.*
+!.env.example
+!.env.coolify.example
+
+# VCS / editor / OS
+.git
+.gitignore
+.DS_Store
+*.code-workspace
+.vscode
+.idea
+
+# Logs
+*.log
+
+# Local uploads — served from a runtime volume, not baked into the image
+uploads
+
+# Packaging / archives
+*.zip
+
+# Docs & scripts not required in the runtime image build context
+agent-transcripts

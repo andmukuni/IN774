@@ -1,0 +1,190 @@
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { PageHeader, Card, FormField, LoadingButton, Spinner } from '../../components/ui';
+import { useToast } from '../../context/ToastContext';
+import { getApiBase } from '../../utils/apiBase';
+import { getAdminAuthHeaders } from '../../utils/authHeaders';
+
+const API_BASE = getApiBase();
+
+const EMPTY_FORM = {
+  code: '',
+  name: '',
+  city: '',
+  address: '',
+  phone: '',
+  managerName: '',
+  status: 'active',
+};
+
+export default function BranchFormPage() {
+  const { id } = useParams();
+  const isEdit = Boolean(id);
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(isEdit);
+  const [form, setForm] = useState(EMPTY_FORM);
+
+  useEffect(() => {
+    if (!isEdit) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/admin/branches/${id}`, {
+          headers: getAdminAuthHeaders(),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.message || 'Failed to load branch');
+        }
+        if (!cancelled) {
+          const branch = json.data;
+          setForm({
+            code: branch.code || '',
+            name: branch.name || '',
+            city: branch.city || '',
+            address: branch.address || '',
+            phone: branch.phone || '',
+            managerName: branch.managerName || '',
+            status: branch.status || 'active',
+          });
+        }
+      } catch (err) {
+        if (!cancelled) toast.error(err?.message || 'Unable to load branch.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id, isEdit, toast]);
+
+  const update = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/branches${isEdit ? `/${id}` : ''}`, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: {
+          ...getAdminAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || 'Failed to save branch');
+      }
+      toast.success(isEdit ? 'Branch updated.' : 'Branch saved.');
+      navigate(isEdit ? `/admin/branches/${id}` : '/admin/branches');
+    } catch (err) {
+      toast.error(err?.message || 'Unable to save branch.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <PageHeader
+        title={isEdit ? 'Edit Branch' : 'Add Branch'}
+        subtitle={isEdit ? 'Update branch location details' : 'Register a new warehouse or retail location'}
+        breadcrumbs={[
+          { label: 'Admin', to: '/admin' },
+          { label: 'Branches', to: '/admin/branches' },
+          { label: isEdit ? 'Edit' : 'Add' },
+        ]}
+      />
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <Spinner size={32} />
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <Card title="Branch details" className="max-w-2xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField
+                label="Branch code"
+                name="code"
+                value={form.code}
+                onChange={(e) => update('code', e.target.value)}
+                required
+                placeholder="GFL-LUS-02"
+              />
+              <FormField
+                label="Name"
+                name="name"
+                value={form.name}
+                onChange={(e) => update('name', e.target.value)}
+                required
+              />
+              <FormField
+                label="City"
+                name="city"
+                value={form.city}
+                onChange={(e) => update('city', e.target.value)}
+              />
+              <FormField
+                label="Phone"
+                name="phone"
+                value={form.phone}
+                onChange={(e) => update('phone', e.target.value)}
+                placeholder="+260 ..."
+              />
+              <FormField
+                label="Manager"
+                name="managerName"
+                value={form.managerName}
+                onChange={(e) => update('managerName', e.target.value)}
+              />
+              <FormField
+                label="Status"
+                name="status"
+                type="select"
+                value={form.status}
+                onChange={(e) => update('status', e.target.value)}
+                options={[
+                  { value: 'active', label: 'Active' },
+                  { value: 'inactive', label: 'Inactive' },
+                ]}
+              />
+              <div className="sm:col-span-2">
+                <FormField
+                  label="Address"
+                  name="address"
+                  textarea
+                  rows={3}
+                  value={form.address}
+                  onChange={(e) => update('address', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <LoadingButton
+                type="submit"
+                loading={saving}
+                loadingLabel="Saving..."
+                className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium"
+              >
+                {isEdit ? 'Update branch' : 'Save branch'}
+              </LoadingButton>
+              <button
+                type="button"
+                onClick={() => navigate(isEdit ? `/admin/branches/${id}` : '/admin/branches')}
+                className="px-5 py-2.5 rounded-xl border border-navy-200 text-sm font-medium text-navy-700 hover:bg-navy-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </Card>
+        </form>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,150 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { promises as fs } from 'fs';
+import { createAuthService } from './auth.js';
+import { bootstrapDatabase } from './schema.js';
+import { evaluateCorsOrigin } from './securityHelpers.js';
+import {
+  ALL_PERMISSION_KEYS,
+  permissionMatches,
+} from '../shared/rbacPermissions.js';
+import { resolveRouteAdminPermission } from './rbacService.js';
+import { createHealthRouter } from './routes/health.js';
+import { createAuthRouter } from './routes/auth.js';
+import { createAdminRouter } from './routes/admin.js';
+import { createPublicRouter } from './routes/public.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+dotenv.config();
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const PORT = Number(process.env.PORT || 4000);
+const DEFAULT_AUTH_TOKEN_SECRET = 'dev-only-auth-secret';
+const AUTH_TOKEN_SECRET_SOURCE = String(process.env.AUTH_TOKEN_SECRET || process.env.JWT_SECRET || '').trim();
+const AUTH_TOKEN_SECRET = AUTH_TOKEN_SECRET_SOURCE || DEFAULT_AUTH_TOKEN_SECRET;
+const ADMIN_API_KEY = String(process.env.ADMIN_API_KEY || '').trim();
+
+if (IS_PRODUCTION && (!AUTH_TOKEN_SECRET_SOURCE || AUTH_TOKEN_SECRET === DEFAULT_AUTH_TOKEN_SECRET)) {
+  throw new Error('AUTH_TOKEN_SECRET or JWT_SECRET must be set to a strong value in production.');
+}
+
+const corsOrigins = String(process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((v) => v.trim())
+  .filter(Boolean);
+const appUrl = String(process.env.APP_URL || '').trim().replace(/\/$/, '');
+const serverOrigin = appUrl || undefined;
+
+const app = express();
+
+if (process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', 1);
+}
+
+const authService = createAuthService({
+  secret: AUTH_TOKEN_SECRET,
+  adminApiKey: ADMIN_API_KEY,
+  allPermissionKeys: ALL_PERMISSION_KEYS,
+});
+
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  next();
+});
+
+app.use('/api', cors({
+  origin(origin, callback) {
+    const result = evaluateCorsOrigin(origin, {
+      corsOrigins,
+      serverOrigin,
+      nodeEnv: process.env.NODE_ENV || 'development',
+    });
+    if (result.allowed) return callback(null, true);
+    return callback(new Error(result.reason || 'CORS blocked'));
+  },
+  credentials: false,
+}));
+
+app.use(express.json({ limit: '2mb' }));
+
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
+function isAdminProtectedRoute(req) {
+  const method = String(req.method || '').toUpperCase();
+  const routePath = String(req.path || '');
+
+  if (routePath.startsWith('/auth/')) return false;
+  if (routePath === '/health' || routePath === '/db-test') return false;
+  if (routePath.startsWith('/public/')) return false;
+
+  if (routePath.startsWith('/admin/')) return true;
+  return false;
+}
+
+app.use('/api', (req, res, next) => {
+  if (!isAdminProtectedRoute(req)) return next();
+
+  const auth = authService.getAdminAuth(req);
+  if (!auth.ok) return authService.sendAuthFailure(res, auth);
+
+  const requiredPerm = resolveRouteAdminPermission(req);
+  const perms = Array.isArray(auth.claims.permissions) ? auth.claims.permissions : [];
+  const isLegacyAdmin = auth.claims.role === 'admin' && perms.length === 0;
+
+  if (!isLegacyAdmin && !permissionMatches(perms, requiredPerm)) {
+    return res.status(403).json({ ok: false, message: 'Insufficient permissions for this action.' });
+  }
+
+  req.adminClaims = auth.claims;
+  return next();
+});
+
+app.use('/api', createHealthRouter());
+app.use('/api/auth', createAuthRouter({ authService }));
+app.use('/api/admin', createAdminRouter());
+app.use('/api/public', createPublicRouter());
+
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+app.use('/uploads', express.static(uploadsDir));
+
+async function startHttpServer() {
+  await fs.mkdir(uploadsDir, { recursive: true });
+
+  const distDir = path.join(__dirname, '..', 'dist');
+  if (IS_PRODUCTION) {
+    try {
+      await fs.access(distDir);
+      app.use(express.static(distDir));
+      app.get(/^(?!\/api|\/uploads).*/, (_req, res) => {
+        res.sendFile(path.join(distDir, 'index.html'));
+      });
+    } catch {
+      console.warn('[server] dist/ not found — API-only mode');
+    }
+  }
+
+  const listenTarget = process.env.PASSENGER === '1' ? 'passenger' : '0.0.0.0';
+  app.listen(listenTarget === 'passenger' ? PORT : PORT, listenTarget === 'passenger' ? undefined : '0.0.0.0', () => {
+    console.log(`[server] GFL Inventory API listening on port ${PORT}`);
+  });
+}
+
+async function main() {
+  await bootstrapDatabase();
+  await startHttpServer();
+}
+
+main().catch((error) => {
+  console.error('[server] Failed to start:', error);
+  process.exit(1);
+});
+
+export default app;

@@ -1,0 +1,40 @@
+{
+  "name": "node-template",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server:dev": "node --watch server/index.js",
+    "server:start": "node server/index.js",
+    "start": "NODE_ENV=production node server/index.js",
+    "deploy:coolify:check": "bash scripts/coolify-compose-check.sh",
+    "deploy:coolify:check:build": "bash scripts/coolify-compose-check.sh --build",
+    "deploy:coolify:preflight": "node scripts/coolify-preflight.mjs",
+    "deploy:coolify:preflight:db": "node scripts/coolify-preflight.mjs --test-db",
+    "deploy:coolify:verify": "bash scripts/verify-coolify-deploy.sh",
+    "deploy:coolify:postdeploy": "bash scripts/coolify-postdeploy.sh",
+    "seed:remote": "node scripts/seed-remote.mjs"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "datatables.net-dt": "^2.3.8",
+    "datatables.net-responsive-dt": "^3.0.8",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
+    "jquery": "^4.0.0",
+    "lucide-react": "^1.8.0",
+    "mysql2": "^3.22.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.14.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tailwindcss": "^4.2.2",
+    "vite": "^8.0.4"
+  }
+}
