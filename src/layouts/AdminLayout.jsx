@@ -166,7 +166,7 @@ function SidebarNavLink({ item, onNavigate, badge, nested = false, prominent = f
 }
 
 function AdminTopBar({ user, onOpenSidebar }) {
-  const { breadcrumbs } = useAdminPage();
+  const { breadcrumbs, actions } = useAdminPage();
 
   return (
     <header className="fixed top-0 right-0 left-0 md:left-72 z-30 h-14 bg-white border-b border-navy-100 flex items-center gap-2 px-3 sm:px-4">
@@ -190,6 +190,11 @@ function AdminTopBar({ user, onOpenSidebar }) {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {actions && (
+          <div className="hidden md:flex items-center gap-2">
+            {actions}
+          </div>
+        )}
         <a
           href="/intake"
           target="_blank"

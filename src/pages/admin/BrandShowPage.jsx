@@ -4,6 +4,7 @@ import { PageHeader, Card, Spinner, RecordDetailView, brandDetailFields, DataTab
 import RecordShowActions from '../../components/admin/RecordShowActions';
 import { useFetchRecord } from '../../hooks/useFetchRecord';
 import { useDeleteRecord } from '../../hooks/useDeleteRecord';
+import { useAuth } from '../../context/AuthContext';
 import {
   productStatusHtml,
   skuHtml,
@@ -53,6 +54,8 @@ const brandItemColumns = [
 
 export default function BrandShowPage() {
   const { id } = useParams();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission('items.manage');
   const { record, loading, error } = useFetchRecord('/admin/brands', id);
   const deleteRecord = useDeleteRecord('/admin/brands', {
     redirectTo: '/admin/brands',
@@ -78,8 +81,8 @@ export default function BrandShowPage() {
           <RecordShowActions
             backTo="/admin/brands"
             backLabel="Back to brands"
-            editTo={id ? `/admin/brands/${id}/edit` : undefined}
-            onDelete={id ? () => deleteRecord(id) : undefined}
+            editTo={canManage && id ? `/admin/brands/${id}/edit` : undefined}
+            onDelete={canManage && id ? () => deleteRecord(id) : undefined}
             deleteTitle="Delete brand"
             deleteMessage={`Delete ${record?.name || 'this brand'}? Brands assigned to inventory items cannot be deleted.`}
           />

@@ -96,3 +96,25 @@ export function employeeCodeHtml(code, fullName) {
   const sub = fullName ? `<div class="dt-subtext">${escapeHtml(fullName)}</div>` : '';
   return `<div class="dt-payee"><div class="dt-payee-primary">${primary}</div>${sub}</div>`;
 }
+
+const ICON_EYE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+
+const ICON_PENCIL = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
+
+export function catalogRowActionsHtml(basePath, row, { canManage = false } = {}) {
+  const id = escapeHtml(String(row?.id || '').trim());
+  if (!id) return '';
+
+  const base = escapeHtml(String(basePath || '').replace(/\/$/, ''));
+  const parts = [
+    `<a href="${base}/${id}" class="dt-action-icon" title="View" aria-label="View">${ICON_EYE}</a>`,
+  ];
+
+  if (canManage) {
+    parts.push(
+      `<a href="${base}/${id}/edit" class="dt-action-icon dt-action-edit" title="Edit" aria-label="Edit">${ICON_PENCIL}</a>`,
+    );
+  }
+
+  return `<div class="dt-actions">${parts.join('')}</div>`;
+}

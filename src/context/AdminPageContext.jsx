@@ -4,14 +4,16 @@ const AdminPageContext = createContext(null);
 
 export function AdminPageProvider({ children }) {
   const [breadcrumbs, setBreadcrumbs] = useState([]);
+  const [actions, setActions] = useState(null);
 
-  const setPageMeta = useCallback(({ breadcrumbs: next = [] } = {}) => {
+  const setPageMeta = useCallback(({ breadcrumbs: next = [], actions: nextActions = null } = {}) => {
     setBreadcrumbs(Array.isArray(next) ? next : []);
+    setActions(nextActions ?? null);
   }, []);
 
   const value = useMemo(
-    () => ({ breadcrumbs, setPageMeta }),
-    [breadcrumbs, setPageMeta],
+    () => ({ breadcrumbs, actions, setPageMeta }),
+    [actions, breadcrumbs, setPageMeta],
   );
 
   return (

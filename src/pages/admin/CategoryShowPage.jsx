@@ -4,6 +4,7 @@ import { PageHeader, Card, Spinner, RecordDetailView, productTypeDetailFields, D
 import RecordShowActions from '../../components/admin/RecordShowActions';
 import { useFetchRecord } from '../../hooks/useFetchRecord';
 import { useDeleteRecord } from '../../hooks/useDeleteRecord';
+import { useAuth } from '../../context/AuthContext';
 import {
   productStatusHtml,
   skuHtml,
@@ -57,6 +58,8 @@ const categoryItemColumns = [
 
 export default function CategoryShowPage() {
   const { id } = useParams();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission('items.manage');
   const { record, loading, error } = useFetchRecord('/admin/product-types', id);
   const deleteRecord = useDeleteRecord('/admin/product-types', {
     redirectTo: '/admin/categories',
@@ -82,8 +85,8 @@ export default function CategoryShowPage() {
           <RecordShowActions
             backTo="/admin/categories"
             backLabel="Back to product types"
-            editTo={id ? `/admin/categories/${id}/edit` : undefined}
-            onDelete={id ? () => deleteRecord(id) : undefined}
+            editTo={canManage && id ? `/admin/categories/${id}/edit` : undefined}
+            onDelete={canManage && id ? () => deleteRecord(id) : undefined}
             deleteTitle="Delete product type"
             deleteMessage={`Delete ${record?.name || 'this product type'}? Types assigned to inventory items cannot be deleted.`}
           />
