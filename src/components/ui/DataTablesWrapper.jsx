@@ -58,6 +58,7 @@ const DataTablesWrapper = forwardRef(function DataTablesWrapper({
   onRowClick,
   getRowHref,
   rowClickable = true,
+  onRowDelete,
   className = '',
   tableKey = 'default',
   selectable = null,
@@ -70,10 +71,12 @@ const DataTablesWrapper = forwardRef(function DataTablesWrapper({
   const navigate = useNavigate();
   const onRowClickRef = useRef(onRowClick);
   const getRowHrefRef = useRef(getRowHref);
+  const onRowDeleteRef = useRef(onRowDelete);
   const selectableRef = useRef(selectable);
   const selectedIdsRef = useRef(toSelectedSet(selectable?.selectedIds));
   onRowClickRef.current = onRowClick;
   getRowHrefRef.current = getRowHref;
+  onRowDeleteRef.current = onRowDelete;
   selectableRef.current = selectable;
   frozenRef.current = frozen;
 
@@ -329,6 +332,17 @@ const DataTablesWrapper = forwardRef(function DataTablesWrapper({
     dtRef.current = new DataTable(tableEl, options);
 
     const onClickRow = (e) => {
+      const deleteBtn = e.target.closest('.dt-row-delete');
+      if (deleteBtn) {
+        e.preventDefault();
+        const id = deleteBtn.getAttribute('data-id');
+        const label = deleteBtn.getAttribute('data-label');
+        if (id && onRowDeleteRef.current) {
+          onRowDeleteRef.current(id, label);
+        }
+        return;
+      }
+
       if (e.target.matches('.dt-row-select, .dt-select-all')) return;
       if (!rowClickable) return;
       const tr = e.target.closest('tbody tr');

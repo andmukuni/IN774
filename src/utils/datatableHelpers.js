@@ -101,7 +101,9 @@ const ICON_EYE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fi
 
 const ICON_PENCIL = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
 
-export function catalogRowActionsHtml(basePath, row, { canManage = false } = {}) {
+const ICON_TRASH = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>';
+
+export function catalogRowActionsHtml(basePath, row, { canManage = false, canDelete = false, deleteLabel = '' } = {}) {
   const id = escapeHtml(String(row?.id || '').trim());
   if (!id) return '';
 
@@ -113,6 +115,13 @@ export function catalogRowActionsHtml(basePath, row, { canManage = false } = {})
   if (canManage) {
     parts.push(
       `<a href="${base}/${id}/edit" class="dt-action-icon dt-action-edit" title="Edit" aria-label="Edit">${ICON_PENCIL}</a>`,
+    );
+  }
+
+  if (canDelete) {
+    const label = escapeHtml(deleteLabel || row?.sku || row?.name || row?.code || 'this record');
+    parts.push(
+      `<button type="button" class="dt-action-icon dt-action-delete dt-row-delete" data-id="${id}" data-label="${label}" title="Delete" aria-label="Delete">${ICON_TRASH}</button>`,
     );
   }
 
