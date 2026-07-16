@@ -73,11 +73,13 @@ const DataTablesWrapper = forwardRef(function DataTablesWrapper({
   const getRowHrefRef = useRef(getRowHref);
   const onRowDeleteRef = useRef(onRowDelete);
   const selectableRef = useRef(selectable);
+  const ajaxParamsRef = useRef(ajaxParams);
   const selectedIdsRef = useRef(toSelectedSet(selectable?.selectedIds));
   onRowClickRef.current = onRowClick;
   getRowHrefRef.current = getRowHref;
   onRowDeleteRef.current = onRowDelete;
   selectableRef.current = selectable;
+  ajaxParamsRef.current = ajaxParams;
   frozenRef.current = frozen;
 
   const updatePageInfo = (api) => {
@@ -251,6 +253,8 @@ const DataTablesWrapper = forwardRef(function DataTablesWrapper({
     const containerEl = containerRef.current;
     if (!tableEl || !containerEl) return undefined;
 
+    let ajaxGeneration = 0;
+
     const options = {
       columns: dtColumns,
       pageLength,
@@ -291,6 +295,7 @@ const DataTablesWrapper = forwardRef(function DataTablesWrapper({
       options.serverSide = true;
       options.processing = true;
       options.ajax = (reqData, callback) => {
+        const generation = ajaxGeneration;
         const params = new URLSearchParams();
         params.set('draw', String(reqData.draw));
         params.set('start', String(reqData.start));
@@ -300,7 +305,7 @@ const DataTablesWrapper = forwardRef(function DataTablesWrapper({
           params.set('order[0][column]', String(reqData.order[0].column));
           params.set('order[0][dir]', reqData.order[0].dir);
         }
-        Object.entries(ajaxParams || {}).forEach(([k, v]) => {
+        Object.entries(ajaxParamsRef.current || {}).forEach(([k, v]) => {
           if (v != null && v !== '') params.set(k, String(v));
         });
 
@@ -310,6 +315,7 @@ const DataTablesWrapper = forwardRef(function DataTablesWrapper({
         fetch(url, { headers: getAdminAuthHeaders(), cache: 'no-store' })
           .then((res) => res.json())
           .then((json) => {
+            if (generation !== ajaxGeneration) return;
             if (!json?.ok) {
               callback({ draw: reqData.draw, recordsTotal: 0, recordsFiltered: 0, data: [] });
               return;
@@ -322,6 +328,7 @@ const DataTablesWrapper = forwardRef(function DataTablesWrapper({
             });
           })
           .catch(() => {
+            if (generation !== ajaxGeneration) return;
             callback({ draw: reqData.draw, recordsTotal: 0, recordsFiltered: 0, data: [] });
           });
       };
@@ -392,6 +399,7 @@ const DataTablesWrapper = forwardRef(function DataTablesWrapper({
     containerEl.addEventListener('change', onSelectionChange);
 
     return () => {
+      ajaxGeneration += 1;
       containerEl.removeEventListener('click', onClickRow);
       containerEl.removeEventListener('change', onSelectionChange);
       if (dtRef.current) {

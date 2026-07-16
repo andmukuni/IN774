@@ -140,15 +140,13 @@ export default function EmployeesListPage() {
         onChange={setFilters}
         onApply={(next) => {
           setAppliedFilters(next);
-          reloadTable();
         }}
         onClear={() => {
           const cleared = emptySearchFilters();
           setFilters(cleared);
           setAppliedFilters(cleared);
-          reloadTable();
         }}
-        placeholder="Search code, name, role, branch, or email..."
+        placeholder="Search code, name, role, branch, email, or phone..."
       />
 
       <Card noPadding>

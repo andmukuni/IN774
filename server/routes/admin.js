@@ -74,9 +74,19 @@ function buildEmployeeWhere(search, statusFilter) {
   const params = [];
 
   if (search) {
-    clauses.push('(e.employee_code LIKE ? OR e.first_name LIKE ? OR e.last_name LIKE ? OR e.email LIKE ? OR e.job_title LIKE ? OR b.name LIKE ? OR b.code LIKE ?)');
+    clauses.push(`(
+      e.employee_code LIKE ?
+      OR e.first_name LIKE ?
+      OR e.last_name LIKE ?
+      OR CONCAT(e.first_name, ' ', e.last_name) LIKE ?
+      OR e.email LIKE ?
+      OR e.phone LIKE ?
+      OR e.job_title LIKE ?
+      OR b.name LIKE ?
+      OR b.code LIKE ?
+    )`);
     const term = `%${search}%`;
-    params.push(term, term, term, term, term, term, term);
+    params.push(term, term, term, term, term, term, term, term, term);
   }
 
   if (statusFilter) {
