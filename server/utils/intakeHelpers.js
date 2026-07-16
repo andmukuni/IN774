@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import pool from '../db.js';
+import { mapBranchRow } from './branchHelpers.js';
 
 export const INTAKE_EMPLOYEE_DEVICE_TYPES = [
   'Monitor',
@@ -75,4 +76,60 @@ export async function resolveBrandId(brandId) {
 export function buildDeviceName({ type, brandName, model = '' }) {
   const parts = [brandName, model, type].map((s) => String(s || '').trim()).filter(Boolean);
   return parts.join(' ') || type || 'Device';
+}
+
+function slugifyBranchCode(name) {
+  const slug = String(name || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24);
+  return slug || 'BRANCH';
+}
+
+async function generateUniqueBranchCode(name) {
+  const base = slugifyBranchCode(name);
+  let code = `GFL-${base}`;
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = attempt === 0 ? code : `${code}-${attempt + 1}`;
+    const [[dup]] = await pool.query('SELECT id FROM branches WHERE code = ? LIMIT 1', [candidate]);
+    if (!dup) return candidate;
+  }
+
+  return `GFL-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+}
+
+export async function resolveBranchByName(name) {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) {
+    const err = new Error('Branch name is required.');
+    err.status = 400;
+    throw err;
+  }
+
+  const [[existing]] = await pool.query(
+    `SELECT id, code, name, city, address, phone, manager_name, status, updated_at
+     FROM branches
+     WHERE status = 'active' AND LOWER(name) = LOWER(?)
+     LIMIT 1`,
+    [trimmed],
+  );
+  if (existing) return mapBranchRow(existing);
+
+  const code = await generateUniqueBranchCode(trimmed);
+  const id = `brn-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+
+  await pool.query(
+    `INSERT INTO branches (id, code, name, city, address, phone, manager_name, status)
+     VALUES (?, ?, ?, '', '', '', '', 'active')`,
+    [id, code, trimmed],
+  );
+
+  const [[row]] = await pool.query(
+    'SELECT id, code, name, city, address, phone, manager_name, status, updated_at FROM branches WHERE id = ?',
+    [id],
+  );
+  return mapBranchRow(row);
 }

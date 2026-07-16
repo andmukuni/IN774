@@ -463,10 +463,14 @@ function SearchableSelect({
   );
 }
 
-function SearchableBranchField({ branches, onSelect, placeholder = 'Branch name' }) {
+function SearchableBranchField({ branches, branch, onBranchChange, placeholder = 'Branch name' }) {
   const rootRef = useRef(null);
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(branch?.name || '');
+
+  useEffect(() => {
+    setQuery(branch?.name || '');
+  }, [branch?.id, branch?.name]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -476,6 +480,18 @@ function SearchableBranchField({ branches, onSelect, placeholder = 'Branch name'
       return haystack.includes(q);
     });
   }, [branches, query]);
+
+  const trimmedQuery = query.trim();
+  const exactMatch = useMemo(() => {
+    if (!trimmedQuery) return null;
+    return branches.find((b) => b.name.toLowerCase() === trimmedQuery.toLowerCase()) || null;
+  }, [branches, trimmedQuery]);
+
+  const showCustomOption = Boolean(
+    trimmedQuery.length >= 2
+    && !exactMatch
+    && !filtered.some((b) => b.name.toLowerCase() === trimmedQuery.toLowerCase()),
+  );
 
   useEffect(() => {
     const handlePointerDown = (event) => {
@@ -492,9 +508,34 @@ function SearchableBranchField({ branches, onSelect, placeholder = 'Branch name'
   }, []);
 
   const pickBranch = (item) => {
-    onSelect(item);
+    onBranchChange(item);
     setQuery(item.name);
     setOpen(false);
+  };
+
+  const pickCustomBranch = () => {
+    onBranchChange({ name: trimmedQuery, isCustom: true });
+    setQuery(trimmedQuery);
+    setOpen(false);
+  };
+
+  const handleQueryChange = (e) => {
+    const next = e.target.value;
+    setQuery(next);
+    setOpen(true);
+
+    const nextTrimmed = next.trim();
+    const match = nextTrimmed
+      ? branches.find((b) => b.name.toLowerCase() === nextTrimmed.toLowerCase())
+      : null;
+
+    if (match) {
+      onBranchChange(match);
+    } else if (nextTrimmed.length >= 2) {
+      onBranchChange({ name: nextTrimmed, isCustom: true });
+    } else {
+      onBranchChange(null);
+    }
   };
 
   return (
@@ -509,10 +550,7 @@ function SearchableBranchField({ branches, onSelect, placeholder = 'Branch name'
             className={`${inputClass} pr-11`}
             value={query}
             placeholder={placeholder}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setOpen(true);
-            }}
+            onChange={handleQueryChange}
             onFocus={() => setOpen(true)}
           />
           <ChevronDown
@@ -527,21 +565,35 @@ function SearchableBranchField({ branches, onSelect, placeholder = 'Branch name'
           role="listbox"
           className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-navy-200 bg-white py-1 shadow-lg"
         >
-          {filtered.length === 0 ? (
-            <li className="px-4 py-3 text-sm text-navy-500">No branches found</li>
+          {filtered.length === 0 && !showCustomOption ? (
+            <li className="px-4 py-3 text-sm text-navy-500">Type a branch name to continue</li>
           ) : (
-            filtered.map((b) => (
-              <li key={b.id} role="option">
-                <button
-                  type="button"
-                  onClick={() => pickBranch(b)}
-                  className="w-full px-4 py-3 text-left hover:bg-cyan-50 active:bg-cyan-100"
-                >
-                  <p className="font-medium text-navy-900">{b.name}</p>
-                  <p className="text-xs text-navy-500">{b.code} · {b.city}</p>
-                </button>
-              </li>
-            ))
+            <>
+              {filtered.map((b) => (
+                <li key={b.id} role="option">
+                  <button
+                    type="button"
+                    onClick={() => pickBranch(b)}
+                    className="w-full px-4 py-3 text-left hover:bg-cyan-50 active:bg-cyan-100"
+                  >
+                    <p className="font-medium text-navy-900">{b.name}</p>
+                    <p className="text-xs text-navy-500">{b.code}{b.city ? ` · ${b.city}` : ''}</p>
+                  </button>
+                </li>
+              ))}
+              {showCustomOption && (
+                <li role="option">
+                  <button
+                    type="button"
+                    onClick={pickCustomBranch}
+                    className="w-full border-t border-navy-100 px-4 py-3 text-left hover:bg-cyan-50 active:bg-cyan-100"
+                  >
+                    <p className="font-medium text-cyan-800">Use &ldquo;{trimmedQuery}&rdquo;</p>
+                    <p className="text-xs text-navy-500">Add this branch if it is missing from the list</p>
+                  </button>
+                </li>
+              )}
+            </>
           )}
         </ul>
       )}
@@ -600,6 +652,7 @@ export default function BranchIntakePage() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [resolvingBranch, setResolvingBranch] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
   const [submissionSummary, setSubmissionSummary] = useState(null);
@@ -741,10 +794,50 @@ export default function BranchIntakePage() {
     [brands],
   );
 
+  const upsertBranchInList = useCallback((nextBranch) => {
+    if (!nextBranch?.id) return;
+    setBranches((prev) => {
+      if (prev.some((b) => b.id === nextBranch.id)) {
+        return prev.map((b) => (b.id === nextBranch.id ? nextBranch : b));
+      }
+      return [...prev, nextBranch].sort((a, b) => a.name.localeCompare(b.name));
+    });
+  }, []);
+
+  const resolveBranchSelection = useCallback(async () => {
+    const name = String(branch?.name || '').trim();
+    if (!name) {
+      throw new Error('Enter your branch name.');
+    }
+
+    if (branch?.id) return branch;
+
+    const localMatch = branches.find((b) => b.name.toLowerCase() === name.toLowerCase());
+    if (localMatch) {
+      setBranch(localMatch);
+      return localMatch;
+    }
+
+    const res = await fetch(`${API_BASE}/public/branches/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.ok) {
+      throw new Error(json?.message || 'Unable to save branch.');
+    }
+
+    const resolved = json.data;
+    setBranch(resolved);
+    upsertBranchInList(resolved);
+    return resolved;
+  }, [branch, branches, upsertBranchInList]);
+
   const employeeFullName = `${employee.firstName} ${employee.lastName}`.trim();
 
   const canNext = () => {
-    if (step === 0) return Boolean(branch);
+    if (step === 0) return Boolean(String(branch?.name || '').trim().length >= 2);
     if (step === 1) return Boolean(employee.firstName.trim() && employee.lastName.trim());
     if (step === 2) return devices.length > 0 || printers.length > 0 || step < 4;
     if (step === 3) return true;
@@ -753,8 +846,16 @@ export default function BranchIntakePage() {
 
   const goNext = async () => {
     setError('');
-    if (step === 0 && branch && !branchCode) {
-      navigate(`/intake/${branch.code}`, { replace: true });
+    if (step === 0 && !branchCode) {
+      setResolvingBranch(true);
+      try {
+        const resolved = await resolveBranchSelection();
+        navigate(`/intake/${resolved.code}`, { replace: true });
+      } catch (err) {
+        setError(err?.message || 'Unable to continue with this branch.');
+      } finally {
+        setResolvingBranch(false);
+      }
       return;
     }
     if (step === 4) {
@@ -781,12 +882,12 @@ export default function BranchIntakePage() {
   };
 
   const handleSubmit = async () => {
-    if (!branch) return;
     setSubmitting(true);
     setError('');
     try {
+      const resolvedBranch = await resolveBranchSelection();
       const payload = {
-        branchId: branch.id,
+        branchId: resolvedBranch.id,
         employeeId: null,
         newEmployee: {
           firstName: employee.firstName,
@@ -821,8 +922,15 @@ export default function BranchIntakePage() {
       if (!res.ok || !json?.ok) {
         throw new Error(json?.message || 'Submission failed');
       }
-      const summary = buildSubmissionSummary();
-      storeSubmission(branch.code, summary);
+      const summary = {
+        ...buildSubmissionSummary(),
+        branch: {
+          name: resolvedBranch.name,
+          code: resolvedBranch.code,
+          city: resolvedBranch.city || '',
+        },
+      };
+      storeSubmission(resolvedBranch.code, summary);
       setSubmissionSummary({ ...summary, submittedAt: new Date().toISOString() });
       setDone(true);
     } catch (err) {
@@ -874,13 +982,13 @@ export default function BranchIntakePage() {
           <p className="shrink-0 text-sm text-navy-600">
             {publicSettings.intakeIntroText || 'Select your branch to report computers and printers in use.'}
           </p>
-          {branch ? (
+          {branch?.id ? (
             <div className="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-4">
               <div className="flex items-start gap-3">
                 <Building2 className="mt-0.5 shrink-0 text-cyan-700" size={20} />
                 <div className="flex-1">
                   <p className="font-semibold text-navy-900">{branch.name}</p>
-                  <p className="text-sm text-navy-600">{branch.code} · {branch.city}</p>
+                  <p className="text-sm text-navy-600">{branch.code}{branch.city ? ` · ${branch.city}` : ''}</p>
                 </div>
               </div>
               {!branchCode && (
@@ -896,7 +1004,8 @@ export default function BranchIntakePage() {
           ) : (
             <SearchableBranchField
               branches={branches}
-              onSelect={setBranch}
+              branch={branch}
+              onBranchChange={setBranch}
               placeholder="Branch name"
             />
           )}
@@ -1181,13 +1290,13 @@ export default function BranchIntakePage() {
             onClick={goNext}
             disabled={
               submitting
-              || (step === 0 && !branch)
-              || (step === 1 && !canNext())
+              || resolvingBranch
+              || !canNext()
               || (step === 4 && !devices.length && !printers.length)
             }
             className="flex min-h-[48px] flex-[2] items-center justify-center gap-1 rounded-xl bg-cyan-600 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {submitting ? 'Submitting…' : step === 4 ? 'Submit report' : (
+            {submitting ? 'Submitting…' : resolvingBranch ? 'Saving branch…' : step === 4 ? 'Submit report' : (
               <>Next <ChevronRight size={18} /></>
             )}
           </button>

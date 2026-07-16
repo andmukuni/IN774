@@ -14,6 +14,7 @@ import {
   resolveBrandId,
   resolveEmployeeCode,
   resolveProductSn,
+  resolveBranchByName,
 } from '../utils/intakeHelpers.js';
 import { logProductRegistration, PRODUCT_EVENT_TYPES } from '../utils/productEventHelpers.js';
 import { getPublicSettings } from '../utils/systemSettingsHelpers.js';
@@ -60,6 +61,34 @@ export function createPublicRouter() {
 
       res.json({ ok: true, data: rows.map(mapBranchRow) });
     } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/branches/resolve', intakeRateLimit, async (req, res) => {
+    try {
+      const publicSettings = await getPublicSettings();
+      if (!publicSettings.intakeEnabled) {
+        return res.status(403).json({
+          ok: false,
+          message: 'Branch equipment reporting is temporarily disabled. Please contact your administrator.',
+        });
+      }
+
+      const name = String(req.body?.name || '').trim();
+      if (!name) {
+        return res.status(400).json({ ok: false, message: 'Branch name is required.' });
+      }
+
+      const branch = await resolveBranchByName(name);
+      res.status(201).json({ ok: true, data: branch });
+    } catch (error) {
+      if (error?.status) {
+        return res.status(error.status).json({ ok: false, message: error.message });
+      }
+      if (error?.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ ok: false, message: 'A branch with this code already exists.' });
+      }
       res.status(500).json({ ok: false, message: error.message });
     }
   });
