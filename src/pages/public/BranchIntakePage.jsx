@@ -187,8 +187,16 @@ function SerialNumberHelpModal({ isOpen, onClose }) {
 
 const INTAKE_CONTACT_KEY = (branchCode) => `gfl-intake-contact:${branchCode}`;
 
+function parseEmailLocal(value) {
+  const trimmed = String(value || '').trim();
+  if (trimmed.includes('@')) {
+    return trimmed.split('@')[0].replace(/\s/g, '');
+  }
+  return trimmed.replace(/[@\s]/g, '');
+}
+
 function buildIntakeEmail(emailLocal) {
-  const local = String(emailLocal || '').trim().replace(/[@\s]/g, '');
+  const local = parseEmailLocal(emailLocal);
   return local ? `${local}@goodfellow.co.zm` : '';
 }
 
@@ -1208,18 +1216,23 @@ export default function BranchIntakePage() {
             </div>
             <Field label="Email" required={!employee.phoneLocal.trim()}>
               <div className="space-y-1">
-                <input
-                  className={inputClass}
-                  value={employee.emailLocal}
-                  onChange={(e) => setEmployee((p) => ({
-                    ...p,
-                    emailLocal: e.target.value.replace(/[@\s]/g, ''),
-                  }))}
-                  placeholder="your.name@goodfellow.co.zm"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                />
+                <div className="flex min-w-0 items-stretch overflow-hidden rounded-xl border border-navy-200 bg-white focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/20">
+                  <input
+                    className="intake-form-input min-h-[48px] min-w-0 flex-1 border-0 bg-transparent px-4 py-3 text-[16px] leading-normal text-navy-900 placeholder:text-navy-400 focus:outline-none"
+                    value={employee.emailLocal}
+                    onChange={(e) => setEmployee((p) => ({
+                      ...p,
+                      emailLocal: parseEmailLocal(e.target.value),
+                    }))}
+                    placeholder="your.name"
+                    inputMode="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                  />
+                  <span className="flex min-h-[48px] shrink-0 items-center border-l border-navy-200 bg-navy-50 px-3 text-sm font-medium text-navy-600">
+                    @goodfellow.co.zm
+                  </span>
+                </div>
                 <p className="text-xs text-navy-500">Enter your Goodfellow email or phone so we can find your existing devices.</p>
               </div>
             </Field>
