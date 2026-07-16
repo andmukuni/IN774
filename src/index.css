@@ -239,3 +239,24 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Branch intake — readable mobile base, no iOS input zoom, no horizontal scroll */
+html.intake-mobile {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html.intake-mobile,
+html.intake-mobile body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+html.intake-mobile .intake-shell {
+  touch-action: manipulation;
+}
+
+html.intake-mobile .intake-form-input {
+  font-size: 16px;
+}

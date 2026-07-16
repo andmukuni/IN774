@@ -90,7 +90,7 @@ function Field({ label, children, required = false }) {
 }
 
 const inputClass =
-  'w-full min-h-[48px] rounded-xl border border-navy-200 bg-white px-4 py-3 text-base text-navy-900 placeholder:text-navy-400 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20';
+  'intake-form-input w-full max-w-full min-h-[48px] rounded-xl border border-navy-200 bg-white px-4 py-3 text-[16px] leading-normal text-navy-900 placeholder:text-navy-400 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20';
 
 function typeLabel(name) {
   return TYPE_LABEL_OVERRIDES[name] || name;
@@ -967,7 +967,7 @@ export default function BranchIntakePage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
       <StepDots step={step} />
       <p className="mb-4 text-center text-sm font-medium text-navy-500">{STEPS[step].label}</p>
 
@@ -1041,31 +1041,29 @@ export default function BranchIntakePage() {
               </Field>
             </div>
             <Field label="Email">
-              <div className="flex items-stretch overflow-hidden rounded-xl border border-navy-200 bg-white focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/20">
+              <div className="space-y-1">
                 <input
-                  className="min-h-[48px] min-w-0 flex-1 border-0 bg-transparent px-4 py-3 text-base text-navy-900 placeholder:text-navy-400 focus:outline-none"
+                  className={inputClass}
                   value={employee.emailLocal}
                   onChange={(e) => setEmployee((p) => ({
                     ...p,
                     emailLocal: e.target.value.replace(/[@\s]/g, ''),
                   }))}
-                  placeholder="your.name"
+                  placeholder="your.name@goodfellow.co.zm"
                   inputMode="email"
                   autoCapitalize="none"
                   autoCorrect="off"
                 />
-                <span className="flex min-h-[48px] shrink-0 items-center border-l border-navy-200 bg-navy-50 px-3 text-sm font-medium text-navy-600">
-                  @goodfellow.co.zm
-                </span>
+                <p className="text-xs text-navy-500">Use your Goodfellow email if you have one.</p>
               </div>
             </Field>
             <Field label="Phone">
-              <div className="flex items-stretch overflow-hidden rounded-xl border border-navy-200 bg-white focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/20">
-                <span className="flex min-h-[48px] shrink-0 items-center border-r border-navy-200 bg-navy-50 px-3 text-sm font-medium text-navy-600">
+              <div className="flex min-w-0 items-stretch overflow-hidden rounded-xl border border-navy-200 bg-white focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/20">
+                <span className="flex min-h-[48px] shrink-0 items-center border-r border-navy-200 bg-navy-50 px-3 text-[16px] font-medium text-navy-600">
                   +260
                 </span>
                 <input
-                  className="min-h-[48px] min-w-0 flex-1 border-0 bg-transparent px-4 py-3 text-base text-navy-900 placeholder:text-navy-400 focus:outline-none"
+                  className="intake-form-input min-h-[48px] min-w-0 flex-1 border-0 bg-transparent px-4 py-3 text-[16px] leading-normal text-navy-900 placeholder:text-navy-400 focus:outline-none"
                   type="tel"
                   value={employee.phoneLocal}
                   onChange={(e) => setEmployee((p) => ({
@@ -1274,13 +1272,13 @@ export default function BranchIntakePage() {
         </div>
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-navy-100 bg-white/95 backdrop-blur px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <div className="mx-auto flex max-w-lg gap-3">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-navy-100 bg-white/95 backdrop-blur px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto flex w-full max-w-lg min-w-0 gap-3">
           {step > 0 && step < 5 && (
             <button
               type="button"
               onClick={goBack}
-              className="flex min-h-[48px] flex-1 items-center justify-center gap-1 rounded-xl border border-navy-200 text-sm font-medium text-navy-700"
+              className="flex min-h-[48px] flex-1 items-center justify-center gap-1 rounded-xl border border-navy-200 text-[16px] font-medium text-navy-700"
             >
               <ChevronLeft size={18} /> Back
             </button>
@@ -1294,7 +1292,7 @@ export default function BranchIntakePage() {
               || !canNext()
               || (step === 4 && !devices.length && !printers.length)
             }
-            className="flex min-h-[48px] flex-[2] items-center justify-center gap-1 rounded-xl bg-cyan-600 text-sm font-semibold text-white disabled:opacity-50"
+            className="flex min-h-[48px] flex-[2] items-center justify-center gap-1 rounded-xl bg-cyan-600 text-[16px] font-semibold text-white disabled:opacity-50"
           >
             {submitting ? 'Submitting…' : resolvingBranch ? 'Saving branch…' : step === 4 ? 'Submit report' : (
               <>Next <ChevronRight size={18} /></>
