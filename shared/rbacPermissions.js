@@ -52,6 +52,7 @@ export const NAV_PERMISSION_MAP = {
   categories: 'items.view',
   'categories-create': 'items.manage',
   brands: 'items.view',
+  'brands-create': 'items.manage',
   intake: 'items.view',
   branches: 'branches.view',
   'branches-create': 'branches.manage',

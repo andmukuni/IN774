@@ -18,6 +18,8 @@ const CategoriesPage = lazy(() => import('./pages/admin/CategoriesPage'));
 const CategoryFormPage = lazy(() => import('./pages/admin/CategoryFormPage'));
 const CategoryShowPage = lazy(() => import('./pages/admin/CategoryShowPage'));
 const BrandsListPage = lazy(() => import('./pages/admin/BrandsListPage'));
+const BrandFormPage = lazy(() => import('./pages/admin/BrandFormPage'));
+const BrandShowPage = lazy(() => import('./pages/admin/BrandShowPage'));
 const BranchesListPage = lazy(() => import('./pages/admin/BranchesListPage'));
 const BranchFormPage = lazy(() => import('./pages/admin/BranchFormPage'));
 const EmployeesListPage = lazy(() => import('./pages/admin/EmployeesListPage'));
@@ -122,6 +124,9 @@ export default function App() {
               <Route path="categories/:id/edit" element={<CategoryFormPage />} />
               <Route path="categories/:id" element={<CategoryShowPage />} />
               <Route path="brands" element={<BrandsListPage />} />
+              <Route path="brands/new" element={<BrandFormPage />} />
+              <Route path="brands/:id/edit" element={<BrandFormPage />} />
+              <Route path="brands/:id" element={<BrandShowPage />} />
               <Route path="branches" element={<BranchesListPage />} />
               <Route path="branches/new" element={<BranchFormPage />} />
               <Route path="branches/:id/edit" element={<BranchFormPage />} />

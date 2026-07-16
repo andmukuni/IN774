@@ -107,7 +107,7 @@ function buildBranchWhere(search, statusFilter) {
   return { where, params };
 }
 
-function buildProductWhere(search, statusFilter, employeeId = '', branchId = '', category = '') {
+function buildProductWhere(search, statusFilter, employeeId = '', branchId = '', category = '', brandId = '') {
   const clauses = [];
   const params = [];
 
@@ -120,6 +120,11 @@ function buildProductWhere(search, statusFilter, employeeId = '', branchId = '',
   if (category) {
     clauses.push('p.category = ?');
     params.push(category);
+  }
+
+  if (brandId) {
+    clauses.push('p.brand_id = ?');
+    params.push(brandId);
   }
 
   if (employeeId) {
@@ -415,7 +420,8 @@ export function createAdminRouter() {
       const employeeId = String(req.query.employeeId || '').trim();
       const branchId = String(req.query.branchId || '').trim();
       const category = String(req.query.category || '').trim();
-      const { where, params } = buildProductWhere(q.search, statusFilter, employeeId, branchId, category);
+      const brandId = String(req.query.brandId || '').trim();
+      const { where, params } = buildProductWhere(q.search, statusFilter, employeeId, branchId, category, brandId);
 
       const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM products p ${PRODUCT_JOIN_SQL} ${where}`,
@@ -839,6 +845,141 @@ export function createAdminRouter() {
       }
 
       return res.json({ ok: true, data });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.get('/brands/:id', async (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim();
+      if (!id) {
+        return res.status(400).json({ ok: false, message: 'Brand id is required.' });
+      }
+
+      const [[row]] = await pool.query(
+        'SELECT id, code, name, status, updated_at FROM brands WHERE id = ?',
+        [id],
+      );
+
+      if (!row) {
+        return res.status(404).json({ ok: false, message: 'Brand not found.' });
+      }
+
+      return res.json({ ok: true, data: mapBrandRow(row) });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/brands', async (req, res) => {
+    try {
+      const {
+        code,
+        name,
+        status = 'active',
+      } = req.body || {};
+
+      if (!code || !name) {
+        return res.status(400).json({ ok: false, message: 'Brand code and name are required.' });
+      }
+
+      const id = `brd-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+
+      await pool.query(
+        `INSERT INTO brands (id, code, name, status)
+         VALUES (?, ?, ?, ?)`,
+        [
+          id,
+          String(code).trim(),
+          String(name).trim(),
+          String(status).trim() || 'active',
+        ],
+      );
+
+      const [[row]] = await pool.query(
+        'SELECT id, code, name, status, updated_at FROM brands WHERE id = ?',
+        [id],
+      );
+      res.status(201).json({ ok: true, data: mapBrandRow(row) });
+    } catch (error) {
+      if (error?.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ ok: false, message: 'A brand with this code already exists.' });
+      }
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.put('/brands/:id', async (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim();
+      if (!id) {
+        return res.status(400).json({ ok: false, message: 'Brand id is required.' });
+      }
+
+      const [[existing]] = await pool.query('SELECT id FROM brands WHERE id = ?', [id]);
+      if (!existing) {
+        return res.status(404).json({ ok: false, message: 'Brand not found.' });
+      }
+
+      const {
+        code,
+        name,
+        status = 'active',
+      } = req.body || {};
+
+      if (!code || !name) {
+        return res.status(400).json({ ok: false, message: 'Brand code and name are required.' });
+      }
+
+      await pool.query(
+        `UPDATE brands SET code = ?, name = ?, status = ? WHERE id = ?`,
+        [
+          String(code).trim(),
+          String(name).trim(),
+          String(status).trim() || 'active',
+          id,
+        ],
+      );
+
+      const [[row]] = await pool.query(
+        'SELECT id, code, name, status, updated_at FROM brands WHERE id = ?',
+        [id],
+      );
+      res.json({ ok: true, data: mapBrandRow(row) });
+    } catch (error) {
+      if (error?.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ ok: false, message: 'A brand with this code already exists.' });
+      }
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.delete('/brands/:id', async (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim();
+      if (!id) {
+        return res.status(400).json({ ok: false, message: 'Brand id is required.' });
+      }
+
+      const [[existing]] = await pool.query('SELECT id FROM brands WHERE id = ?', [id]);
+      if (!existing) {
+        return res.status(404).json({ ok: false, message: 'Brand not found.' });
+      }
+
+      const [[productCount]] = await pool.query(
+        'SELECT COUNT(*) AS total FROM products WHERE brand_id = ?',
+        [id],
+      );
+      if (Number(productCount?.total || 0) > 0) {
+        return res.status(409).json({
+          ok: false,
+          message: 'Cannot delete a brand that is assigned to inventory items.',
+        });
+      }
+
+      await pool.query('DELETE FROM brands WHERE id = ?', [id]);
+      res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ ok: false, message: error.message });
     }

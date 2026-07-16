@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { PlusCircle } from 'lucide-react';
 import { PageHeader, DataTable, Card, ListSearchFilters, emptySearchFilters } from '../../components/ui';
 import { branchStatusHtml, dateHtml, textHtml } from '../../utils/datatableHelpers';
 
@@ -40,6 +42,15 @@ export default function BrandsListPage() {
           { label: 'Inventory', to: '/admin/items' },
           { label: 'Brands' },
         ]}
+        actions={(
+          <Link
+            to="/admin/brands/new"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
+          >
+            <PlusCircle size={16} />
+            Add brand
+          </Link>
+        )}
       />
 
       <ListSearchFilters
@@ -67,7 +78,7 @@ export default function BrandsListPage() {
           ajaxParams={ajaxParams}
           pageLength={25}
           emptyTitle="No brands found"
-          rowClickable={false}
+          getRowHref={(row) => `/admin/brands/${row.id}`}
           tableKey={`brands-${appliedFilters.search}`}
         />
       </Card>
