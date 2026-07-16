@@ -354,10 +354,6 @@ export function createPublicRouter() {
         created.branchPrinters.push({ id: productId, sku, name, category: 'Printer' });
       }
 
-      if (!created.employeeDevices.length && !created.branchPrinters.length) {
-        return res.status(400).json({ ok: false, message: 'Add at least one device or printer.' });
-      }
-
       res.status(201).json({
         ok: true,
         data: {

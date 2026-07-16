@@ -6,7 +6,6 @@ import {
   branchCodeHtml,
   contactHtml,
   dateHtml,
-  employeeCodeHtml,
   employeeStatusHtml,
   textHtml,
 } from '../../utils/datatableHelpers';
@@ -32,7 +31,12 @@ export default function EmployeesListPage() {
     {
       key: 'employeeCode',
       label: 'Code',
-      render: (_, row) => employeeCodeHtml(row.employeeCode, row.fullName),
+      render: (_, row) => textHtml(row.employeeCode),
+    },
+    {
+      key: 'fullName',
+      label: 'Name',
+      render: (_, row) => textHtml(row.fullName),
     },
     { key: 'jobTitle', label: 'Role', render: (_, row) => textHtml(row.jobTitle) },
     {

@@ -839,7 +839,7 @@ export default function BranchIntakePage() {
   const canNext = () => {
     if (step === 0) return Boolean(String(branch?.name || '').trim().length >= 2);
     if (step === 1) return Boolean(employee.firstName.trim() && employee.lastName.trim());
-    if (step === 2) return devices.length > 0 || printers.length > 0 || step < 4;
+    if (step === 2) return true;
     if (step === 3) return true;
     return true;
   };
@@ -1091,7 +1091,7 @@ export default function BranchIntakePage() {
       {step === 2 && (
         <div className="space-y-4">
           <p className="text-sm text-navy-600">
-            Add each device you use. You can add more than one — same type or different types.
+            Add each device you use, if any. You can skip this step and continue without adding devices.
           </p>
 
           <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm space-y-3">
@@ -1193,7 +1193,7 @@ export default function BranchIntakePage() {
 
           {!devices.length && (
             <p className="text-center text-sm text-navy-400 py-2">
-              Use the form above to add your first device.
+              No devices to add? Continue to the next step — devices are optional.
             </p>
           )}
         </div>
@@ -1203,7 +1203,7 @@ export default function BranchIntakePage() {
         <div className="space-y-4">
           <p className="text-sm text-navy-600">
             <Printer size={16} className="inline mr-1 text-cyan-600" />
-            Branch printers are shared — not tied to one person. Add all printers at this branch.
+            Branch printers are shared — not tied to one person. Add printers at this branch if you have any (optional).
           </p>
           <button
             type="button"
@@ -1235,7 +1235,7 @@ export default function BranchIntakePage() {
             </div>
           )}
           {!printers.length && (
-            <p className="text-center text-sm text-navy-400">Skip if none to add — you can submit on the next step.</p>
+            <p className="text-center text-sm text-navy-400">No printers to add? Continue to review — this step is optional.</p>
           )}
         </div>
       )}
@@ -1267,7 +1267,7 @@ export default function BranchIntakePage() {
             </div>
           )}
           {!devices.length && !printers.length && (
-            <p className="text-red-600">Add at least one device or printer before submitting.</p>
+            <p className="text-navy-600">No devices or printers added. You can still submit your employee details.</p>
           )}
         </div>
       )}
@@ -1290,7 +1290,6 @@ export default function BranchIntakePage() {
               submitting
               || resolvingBranch
               || !canNext()
-              || (step === 4 && !devices.length && !printers.length)
             }
             className="flex min-h-[48px] flex-[2] items-center justify-center gap-1 rounded-xl bg-cyan-600 text-[16px] font-semibold text-white disabled:opacity-50"
           >
