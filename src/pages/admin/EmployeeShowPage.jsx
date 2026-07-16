@@ -17,6 +17,7 @@ import {
 import RecordShowActions from '../../components/admin/RecordShowActions';
 import { useFetchRecord } from '../../hooks/useFetchRecord';
 import { useDeleteRecord } from '../../hooks/useDeleteRecord';
+import { useAuth } from '../../context/AuthContext';
 import { formatDate } from '../../utils/helpers';
 import {
   productStatusHtml,
@@ -62,6 +63,8 @@ const assignedItemColumns = [
 
 export default function EmployeeShowPage() {
   const { id } = useParams();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission('employees.manage');
   const { record: profile, loading, error } = useFetchRecord('/admin/employees', id);
   const deleteRecord = useDeleteRecord('/admin/employees', {
     redirectTo: '/admin/employees',
@@ -84,8 +87,8 @@ export default function EmployeeShowPage() {
           <RecordShowActions
             backTo="/admin/employees"
             backLabel="Back to employees"
-            editTo={id ? `/admin/employees/${id}/edit` : undefined}
-            onDelete={id ? () => deleteRecord(id) : undefined}
+            editTo={canManage && id ? `/admin/employees/${id}/edit` : undefined}
+            onDelete={canManage && id ? () => deleteRecord(id) : undefined}
             deleteTitle="Delete employee"
             deleteMessage={`Delete ${profile?.fullName || 'this employee'}? Assigned products will be unlinked.`}
           />
