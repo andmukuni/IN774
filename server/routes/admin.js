@@ -107,7 +107,7 @@ function buildBranchWhere(search, statusFilter) {
   return { where, params };
 }
 
-function buildProductWhere(search, statusFilter, employeeId = '', branchId = '') {
+function buildProductWhere(search, statusFilter, employeeId = '', branchId = '', category = '') {
   const clauses = [];
   const params = [];
 
@@ -115,6 +115,11 @@ function buildProductWhere(search, statusFilter, employeeId = '', branchId = '')
     clauses.push('(p.sku LIKE ? OR p.name LIKE ? OR p.category LIKE ? OR br.name LIKE ? OR br.code LIKE ? OR e.first_name LIKE ? OR e.last_name LIKE ? OR b.name LIKE ? OR b.code LIKE ?)');
     const term = `%${search}%`;
     params.push(term, term, term, term, term, term, term, term, term);
+  }
+
+  if (category) {
+    clauses.push('p.category = ?');
+    params.push(category);
   }
 
   if (employeeId) {
@@ -409,7 +414,8 @@ export function createAdminRouter() {
       const statusFilter = String(req.query.status || '').trim();
       const employeeId = String(req.query.employeeId || '').trim();
       const branchId = String(req.query.branchId || '').trim();
-      const { where, params } = buildProductWhere(q.search, statusFilter, employeeId, branchId);
+      const category = String(req.query.category || '').trim();
+      const { where, params } = buildProductWhere(q.search, statusFilter, employeeId, branchId, category);
 
       const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM products p ${PRODUCT_JOIN_SQL} ${where}`,
@@ -865,6 +871,163 @@ export function createAdminRouter() {
       }
 
       return res.json({ ok: true, data });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.get('/product-types/:id', async (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim();
+      if (!id) {
+        return res.status(400).json({ ok: false, message: 'Product type id is required.' });
+      }
+
+      const [[row]] = await pool.query(
+        'SELECT id, code, name, description, status, updated_at FROM product_types WHERE id = ?',
+        [id],
+      );
+
+      if (!row) {
+        return res.status(404).json({ ok: false, message: 'Product type not found.' });
+      }
+
+      return res.json({ ok: true, data: mapProductTypeRow(row) });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/product-types', async (req, res) => {
+    try {
+      const {
+        code,
+        name,
+        description = '',
+        status = 'active',
+      } = req.body || {};
+
+      if (!code || !name) {
+        return res.status(400).json({ ok: false, message: 'Product type code and name are required.' });
+      }
+
+      const id = `typ-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+
+      await pool.query(
+        `INSERT INTO product_types (id, code, name, description, status)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          id,
+          String(code).trim(),
+          String(name).trim(),
+          String(description).trim(),
+          String(status).trim() || 'active',
+        ],
+      );
+
+      const [[row]] = await pool.query(
+        'SELECT id, code, name, description, status, updated_at FROM product_types WHERE id = ?',
+        [id],
+      );
+      res.status(201).json({ ok: true, data: mapProductTypeRow(row) });
+    } catch (error) {
+      if (error?.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ ok: false, message: 'A product type with this code already exists.' });
+      }
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.put('/product-types/:id', async (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim();
+      if (!id) {
+        return res.status(400).json({ ok: false, message: 'Product type id is required.' });
+      }
+
+      const [[existing]] = await pool.query(
+        'SELECT id, name FROM product_types WHERE id = ?',
+        [id],
+      );
+      if (!existing) {
+        return res.status(404).json({ ok: false, message: 'Product type not found.' });
+      }
+
+      const {
+        code,
+        name,
+        description = '',
+        status = 'active',
+      } = req.body || {};
+
+      if (!code || !name) {
+        return res.status(400).json({ ok: false, message: 'Product type code and name are required.' });
+      }
+
+      const trimmedName = String(name).trim();
+      const oldName = String(existing.name || '').trim();
+
+      await pool.query(
+        `UPDATE product_types
+         SET code = ?, name = ?, description = ?, status = ?
+         WHERE id = ?`,
+        [
+          String(code).trim(),
+          trimmedName,
+          String(description).trim(),
+          String(status).trim() || 'active',
+          id,
+        ],
+      );
+
+      if (oldName && trimmedName !== oldName) {
+        await pool.query(
+          'UPDATE products SET category = ? WHERE category = ?',
+          [trimmedName, oldName],
+        );
+      }
+
+      const [[row]] = await pool.query(
+        'SELECT id, code, name, description, status, updated_at FROM product_types WHERE id = ?',
+        [id],
+      );
+      res.json({ ok: true, data: mapProductTypeRow(row) });
+    } catch (error) {
+      if (error?.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ ok: false, message: 'A product type with this code already exists.' });
+      }
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.delete('/product-types/:id', async (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim();
+      if (!id) {
+        return res.status(400).json({ ok: false, message: 'Product type id is required.' });
+      }
+
+      const [[existing]] = await pool.query(
+        'SELECT id, name FROM product_types WHERE id = ?',
+        [id],
+      );
+      if (!existing) {
+        return res.status(404).json({ ok: false, message: 'Product type not found.' });
+      }
+
+      const [[productCount]] = await pool.query(
+        'SELECT COUNT(*) AS total FROM products WHERE category = ?',
+        [String(existing.name || '').trim()],
+      );
+      if (Number(productCount?.total || 0) > 0) {
+        return res.status(409).json({
+          ok: false,
+          message: 'Cannot delete a product type that is assigned to inventory items.',
+        });
+      }
+
+      await pool.query('DELETE FROM product_types WHERE id = ?', [id]);
+      res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ ok: false, message: error.message });
     }

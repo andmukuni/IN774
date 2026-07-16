@@ -6,7 +6,7 @@ export { default as DataTable } from './DataTable';
 export { default as ListSearchFilters, emptySearchFilters } from './ListSearchFilters';
 export { default as FormField } from './FormField';
 export { default as Modal } from './Modal';
-export { default as RecordDetailView, productDetailFields, branchDetailFields, employeeDetailFields, userDetailFields } from './RecordDetailView';
+export { default as RecordDetailView, productDetailFields, productTypeDetailFields, branchDetailFields, employeeDetailFields, userDetailFields } from './RecordDetailView';
 export { default as ConfirmDialog } from './ConfirmDialog';
 export { default as StatusBadge } from './StatusBadge';
 export { default as Spinner } from './Spinner';

@@ -75,6 +75,27 @@ export const productDetailFields = [
   },
 ];
 
+export const productTypeDetailFields = [
+  { key: 'code', label: 'Type code' },
+  { key: 'name', label: 'Name' },
+  {
+    key: 'description',
+    label: 'Description',
+    fullWidth: true,
+    render: (value) => value || '—',
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    render: (value) => <StatusBadge status={value} />,
+  },
+  {
+    key: 'updatedAt',
+    label: 'Last updated',
+    render: (value) => formatDate(value),
+  },
+];
+
 export const branchDetailFields = [
   { key: 'code', label: 'Branch code' },
   { key: 'name', label: 'Name' },

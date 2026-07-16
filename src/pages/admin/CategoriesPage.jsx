@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { PlusCircle } from 'lucide-react';
 import { PageHeader, DataTable, Card, ListSearchFilters, emptySearchFilters } from '../../components/ui';
 import { branchStatusHtml, dateHtml, textHtml } from '../../utils/datatableHelpers';
 
@@ -42,6 +43,15 @@ export default function CategoriesPage() {
           { label: 'Inventory', to: '/admin/items' },
           { label: 'Product Types' },
         ]}
+        actions={(
+          <Link
+            to="/admin/categories/new"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
+          >
+            <PlusCircle size={16} />
+            Add product type
+          </Link>
+        )}
       />
 
       <p className="mb-4 text-sm text-navy-600 max-w-3xl">
@@ -75,7 +85,7 @@ export default function CategoriesPage() {
           ajaxParams={ajaxParams}
           pageLength={25}
           emptyTitle="No product types found"
-          rowClickable={false}
+          getRowHref={(row) => `/admin/categories/${row.id}`}
           tableKey={`product-types-${appliedFilters.search}`}
         />
       </Card>

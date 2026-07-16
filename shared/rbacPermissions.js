@@ -50,6 +50,7 @@ export const NAV_PERMISSION_MAP = {
   'items-low-stock': 'items.view',
   'items-create': 'items.manage',
   categories: 'items.view',
+  'categories-create': 'items.manage',
   brands: 'items.view',
   intake: 'items.view',
   branches: 'branches.view',
