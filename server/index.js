@@ -16,6 +16,7 @@ import { createHealthRouter } from './routes/health.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createPublicRouter } from './routes/public.js';
+import { loadBrandedIndexHtml } from './utils/htmlMetaHelpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
@@ -32,11 +33,14 @@ if (IS_PRODUCTION && (!AUTH_TOKEN_SECRET_SOURCE || AUTH_TOKEN_SECRET === DEFAULT
   throw new Error('AUTH_TOKEN_SECRET or JWT_SECRET must be set to a strong value in production.');
 }
 
-const corsOrigins = String(process.env.CORS_ORIGINS || '')
+const coolifyServiceUrl = String(
+  process.env.SERVICE_URL_GFL_INVENTORY || process.env.SERVICE_URL || '',
+).trim().replace(/\/$/, '');
+const corsOrigins = String(process.env.CORS_ORIGINS || coolifyServiceUrl || '')
   .split(',')
   .map((v) => v.trim())
   .filter(Boolean);
-const appUrl = String(process.env.APP_URL || '').trim().replace(/\/$/, '');
+const appUrl = String(process.env.APP_URL || coolifyServiceUrl || '').trim().replace(/\/$/, '');
 const serverOrigin = appUrl || undefined;
 
 const app = express();
@@ -122,9 +126,14 @@ async function startHttpServer() {
   if (IS_PRODUCTION) {
     try {
       await fs.access(distDir);
-      app.use(express.static(distDir));
-      app.get(/^(?!\/api|\/uploads).*/, (_req, res) => {
-        res.sendFile(path.join(distDir, 'index.html'));
+      app.use(express.static(distDir, { index: false }));
+      app.get(/^(?!\/api|\/uploads).*/, async (_req, res, next) => {
+        try {
+          const html = await loadBrandedIndexHtml(distDir);
+          res.type('html').send(html);
+        } catch (error) {
+          next(error);
+        }
       });
     } catch {
       console.warn('[server] dist/ not found — API-only mode');

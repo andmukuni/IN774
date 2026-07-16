@@ -49,7 +49,10 @@ export default function SystemSettingsPage() {
       }
       setOverview(json.data);
       if (json.data?.settings?.companyName) {
-        setCompany({ name: json.data.settings.companyName });
+        setCompany({
+          name: json.data.settings.companyName,
+          description: json.data.settings.intakeIntroText,
+        });
       }
     } catch (err) {
       setError(err?.message || 'Unable to load system settings.');
@@ -80,7 +83,10 @@ export default function SystemSettingsPage() {
       }
       setOverview(json.data);
       if (json.data?.settings?.companyName) {
-        setCompany({ name: json.data.settings.companyName });
+        setCompany({
+          name: json.data.settings.companyName,
+          description: json.data.settings.intakeIntroText,
+        });
       }
       toast('System settings saved.', { type: 'success' });
     } catch (err) {

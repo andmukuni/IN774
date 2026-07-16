@@ -2,6 +2,7 @@ node_modules
 dist
 .env
 .env.local
+.env.coolify
 .DS_Store
 uploads/*
 !uploads/.gitkeep

@@ -71,8 +71,10 @@ Copy from [`.env.coolify.example`](.env.coolify.example) into Coolify → **Envi
 | `DB_PASSWORD` | MySQL password |
 | `DB_NAME` | `default` (or your database name) |
 | `DATABASE_URL` | Optional single URL (overrides `DB_*` if set) |
-| `APP_URL` | Coolify URL (no trailing slash) |
+| `APP_URL` | Public URL (no trailing slash), e.g. `https://inv774.goodfellowzm.com` |
 | `CORS_ORIGINS` | Same as `APP_URL` |
+| `SERVICE_URL_GFL_INVENTORY` | Coolify auto-injects this for service `gfl-inventory`; used as fallback for `APP_URL` / `CORS_ORIGINS` |
+| `SERVICE_FQDN_GFL_INVENTORY` | Coolify auto-injects FQDN, e.g. `inv774.goodfellowzm.com` |
 | `TRUST_PROXY` | `1` |
 | `AUTH_TOKEN_SECRET` | Random 64-char hex |
 | `DEFAULT_ADMIN_EMAIL` | First-boot admin (if DB empty) |

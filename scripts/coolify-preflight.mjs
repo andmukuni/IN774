@@ -86,8 +86,11 @@ for (const key of RECOMMENDED) {
   ok(`${key}=${val}`);
 }
 
-const appUrl = String(process.env.APP_URL || '').trim().replace(/\/$/, '');
-const corsOrigins = String(process.env.CORS_ORIGINS || '')
+const coolifyServiceUrl = String(
+  process.env.SERVICE_URL_GFL_INVENTORY || process.env.SERVICE_URL || '',
+).trim().replace(/\/$/, '');
+const appUrl = String(process.env.APP_URL || coolifyServiceUrl || '').trim().replace(/\/$/, '');
+const corsOrigins = String(process.env.CORS_ORIGINS || coolifyServiceUrl || '')
   .split(',')
   .map((v) => v.trim().replace(/\/$/, ''))
   .filter(Boolean);

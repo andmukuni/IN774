@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { COMPANY_BRANDING_CACHE_KEY, DEFAULT_COMPANY_NAME } from '../constants/company';
 import { getApiBase } from '../utils/apiBase';
+import { applyPageBranding } from '../utils/pageMeta';
 
 const API_BASE = getApiBase();
 
@@ -23,11 +24,11 @@ function writeCachedCompany(data) {
   }
 }
 
-function applyDocumentTitle(name) {
-  const trimmed = String(name || '').trim();
-  if (trimmed) {
-    document.title = trimmed;
-  }
+function applyDocumentBranding({ name, description } = {}) {
+  applyPageBranding({
+    title: name,
+    description,
+  });
 }
 
 export function CompanyProvider({ children }) {
@@ -38,12 +39,18 @@ export function CompanyProvider({ children }) {
     const next = data && typeof data === 'object' ? data : {};
     setCompanyState(next);
     writeCachedCompany(next);
-    applyDocumentTitle(next.name);
+    applyDocumentBranding({
+      name: next.name,
+      description: next.description,
+    });
   }, []);
 
   useEffect(() => {
-    applyDocumentTitle(company.name || DEFAULT_COMPANY_NAME);
-  }, [company.name]);
+    applyDocumentBranding({
+      name: company.name || DEFAULT_COMPANY_NAME,
+      description: company.description,
+    });
+  }, [company.name, company.description]);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +59,10 @@ export function CompanyProvider({ children }) {
         const res = await fetch(`${API_BASE}/public/settings`, { cache: 'no-store' });
         const json = await res.json().catch(() => ({}));
         if (!cancelled && res.ok && json?.ok && json.data?.companyName) {
-          applyCompany({ name: json.data.companyName });
+          applyCompany({
+            name: json.data.companyName,
+            description: json.data.intakeIntroText,
+          });
         }
       } catch {
         // keep cached/default branding
