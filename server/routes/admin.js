@@ -286,30 +286,6 @@ async function resolveEmployeeCode(employeeCode, { employeeId = null } = {}) {
   return `EMP-${Date.now().toString(36).toUpperCase()}`;
 }
 
-async function resolveProductSn(sku, { productId = null } = {}) {
-  const trimmed = String(sku || '').trim();
-  if (trimmed) return trimmed;
-
-  if (productId) {
-    const [[existing]] = await pool.query(
-      'SELECT sku FROM products WHERE id = ? LIMIT 1',
-      [productId],
-    );
-    if (existing?.sku) return existing.sku;
-  }
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const code = `GFL-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-    const [[dup]] = await pool.query(
-      'SELECT id FROM products WHERE sku = ? LIMIT 1',
-      [code],
-    );
-    if (!dup) return code;
-  }
-
-  return `GFL-${Date.now().toString(36).toUpperCase()}`;
-}
-
 async function fetchInventoryStats() {
   const [[totals]] = await pool.query(`
     SELECT
@@ -485,6 +461,9 @@ export function createAdminRouter() {
       if (!name) {
         return res.status(400).json({ ok: false, message: 'Product name is required.' });
       }
+      if (!String(sku || '').trim()) {
+        return res.status(400).json({ ok: false, message: 'Product S/N is required.' });
+      }
 
       const resolvedUnitPrice = parseOptionalUnitPrice(unitPrice);
 
@@ -500,7 +479,7 @@ export function createAdminRouter() {
       }
 
       const id = `prd-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-      const resolvedSku = await resolveProductSn(sku);
+      const resolvedSku = String(sku).trim();
       const status = bodyStatus || computeProductStatus(quantity, reorderLevel);
 
       await pool.query(
@@ -557,6 +536,9 @@ export function createAdminRouter() {
       if (!name) {
         return res.status(400).json({ ok: false, message: 'Product name is required.' });
       }
+      if (!String(sku || '').trim()) {
+        return res.status(400).json({ ok: false, message: 'Product S/N is required.' });
+      }
 
       const resolvedUnitPrice = parseOptionalUnitPrice(unitPrice);
 
@@ -571,7 +553,7 @@ export function createAdminRouter() {
         return res.status(err.status || 400).json({ ok: false, message: err.message });
       }
 
-      const resolvedSku = await resolveProductSn(sku, { productId: id });
+      const resolvedSku = String(sku).trim();
       const status = bodyStatus === 'discontinued'
         ? 'discontinued'
         : computeProductStatus(quantity, reorderLevel, existing.status);

@@ -168,8 +168,7 @@ function SerialNumberHelpModal({ isOpen, onClose }) {
           <p className="font-medium">If the result is blank or says &quot;To be filled by O.E.M&quot;</p>
           <p className="mt-1 text-amber-800">
             The manufacturer may not have stored the S/N in firmware. Check the bottom of a laptop,
-            the back of a monitor, or the side/rear of a desktop tower. You can leave the field blank —
-            we will auto-generate a reference number.
+            the back of a monitor, or the side/rear of a desktop tower.
           </p>
         </section>
 
@@ -186,23 +185,36 @@ function SerialNumberHelpModal({ isOpen, onClose }) {
   );
 }
 
-const INTAKE_SUBMISSION_KEY = (branchCode) => `gfl-intake-submitted:${branchCode}`;
+const INTAKE_CONTACT_KEY = (branchCode) => `gfl-intake-contact:${branchCode}`;
 
-function readStoredSubmission(branchCode) {
+function buildIntakeEmail(emailLocal) {
+  const local = String(emailLocal || '').trim().replace(/[@\s]/g, '');
+  return local ? `${local}@goodfellow.co.zm` : '';
+}
+
+function buildIntakePhone(phoneLocal) {
+  const local = String(phoneLocal || '').trim().replace(/^0+/, '');
+  return local ? `+260${local}` : '';
+}
+
+function readStoredContact(branchCode) {
   if (!branchCode) return null;
   try {
-    const raw = sessionStorage.getItem(INTAKE_SUBMISSION_KEY(branchCode));
+    const raw = localStorage.getItem(INTAKE_CONTACT_KEY(branchCode));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
-function storeSubmission(branchCode, summary) {
+function storeContact(branchCode, { emailLocal, phoneLocal }) {
   if (!branchCode) return;
-  sessionStorage.setItem(
-    INTAKE_SUBMISSION_KEY(branchCode),
-    JSON.stringify({ ...summary, submittedAt: new Date().toISOString() }),
+  localStorage.setItem(
+    INTAKE_CONTACT_KEY(branchCode),
+    JSON.stringify({
+      emailLocal: String(emailLocal || '').trim(),
+      phoneLocal: String(phoneLocal || '').trim(),
+    }),
   );
 }
 
@@ -218,7 +230,28 @@ function formatSubmittedAt(iso) {
   }
 }
 
-function IntakeSuccessScreen({ summary }) {
+function ExistingDevicesPanel({ devices, title, subtitle }) {
+  if (!devices?.length) return null;
+
+  return (
+    <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 px-4 py-3">
+      <p className="text-sm font-semibold text-cyan-900">{title}</p>
+      {subtitle && <p className="mt-0.5 text-xs text-cyan-800">{subtitle}</p>}
+      <ul className="mt-2 space-y-1.5 text-xs text-navy-700">
+        {devices.map((device) => (
+          <li key={device.id} className="rounded-lg bg-white/70 px-3 py-2">
+            <span className="font-medium text-navy-900">{device.category}</span>
+            {device.brandName ? ` · ${device.brandName}` : ''}
+            {device.name ? ` — ${device.name}` : ''}
+            {device.sku ? ` (S/N: ${device.sku})` : ''}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function IntakeSuccessScreen({ summary, onAddMore }) {
   const submittedLabel = formatSubmittedAt(summary.submittedAt);
 
   return (
@@ -236,13 +269,23 @@ function IntakeSuccessScreen({ summary }) {
         )}
       </div>
 
-      <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-        <Info size={18} className="mt-0.5 shrink-0 text-amber-700" />
-        <div className="text-sm text-amber-900">
-          <p className="font-semibold">One submission per person</p>
-          <p className="mt-1 text-amber-800">
-            Your report has been saved. Please do not submit again — duplicate entries make
-            inventory harder to manage. Contact your branch manager or IT if something needs to change.
+      {onAddMore && (
+        <button
+          type="button"
+          onClick={onAddMore}
+          className="w-full min-h-[48px] rounded-xl bg-cyan-600 text-sm font-semibold text-white hover:bg-cyan-500"
+        >
+          Add more devices
+        </button>
+      )}
+
+      <div className="flex items-start gap-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3">
+        <Info size={18} className="mt-0.5 shrink-0 text-cyan-700" />
+        <div className="text-sm text-cyan-900">
+          <p className="font-semibold">Need to report another device?</p>
+          <p className="mt-1 text-cyan-800">
+            Use the same email and phone number when you return — we will add new devices to your
+            existing profile and show what you have already reported.
           </p>
         </div>
       </div>
@@ -292,7 +335,7 @@ function IntakeSuccessScreen({ summary }) {
                   <p className="text-xs text-navy-500">
                     {[
                       device.model && `Model: ${device.model}`,
-                      device.serialNumber ? `S/N: ${device.serialNumber}` : 'S/N: auto-generated',
+                      device.serialNumber && `S/N: ${device.serialNumber}`,
                     ].filter(Boolean).join(' · ')}
                   </p>
                 </li>
@@ -318,7 +361,7 @@ function IntakeSuccessScreen({ summary }) {
                   <p className="text-xs text-navy-500">
                     {[
                       printer.model && `Model: ${printer.model}`,
-                      printer.serialNumber ? `S/N: ${printer.serialNumber}` : 'S/N: auto-generated',
+                      printer.serialNumber && `S/N: ${printer.serialNumber}`,
                     ].filter(Boolean).join(' · ')}
                   </p>
                 </li>
@@ -634,12 +677,13 @@ function DeviceCard({ title, icon: Icon, device, brands, onChange, onRemove, can
           placeholder="e.g. EliteBook 840"
         />
       </Field>
-      <Field label="Serial / S/N (optional)">
+      <Field label="Serial / S/N" required>
         <input
           className={inputClass}
           value={device.serialNumber}
           onChange={(e) => onChange({ ...device, serialNumber: e.target.value })}
-          placeholder="Auto-generated if blank"
+          placeholder="Enter serial number"
+          required
         />
       </Field>
     </div>
@@ -658,6 +702,9 @@ export default function BranchIntakePage() {
   const [submissionSummary, setSubmissionSummary] = useState(null);
   const [branches, setBranches] = useState([]);
   const [existingEquipment, setExistingEquipment] = useState({ employeeDevices: [], branchPrinters: [] });
+  const [matchedEmployee, setMatchedEmployee] = useState(null);
+  const [myExistingDevices, setMyExistingDevices] = useState([]);
+  const [lookupLoading, setLookupLoading] = useState(false);
   const [brands, setBrands] = useState([]);
   const [deviceTypes, setDeviceTypes] = useState([]);
   const [branch, setBranch] = useState(null);
@@ -690,12 +737,8 @@ export default function BranchIntakePage() {
     employee: {
       fullName: `${employee.firstName} ${employee.lastName}`.trim(),
       jobTitle: employee.jobTitle?.trim() || '',
-      email: employee.emailLocal.trim()
-        ? `${employee.emailLocal.trim()}@goodfellow.co.zm`
-        : '',
-      phone: employee.phoneLocal.trim()
-        ? `+260${employee.phoneLocal.trim().replace(/^0+/, '')}`
-        : '',
+      email: buildIntakeEmail(employee.emailLocal),
+      phone: buildIntakePhone(employee.phoneLocal),
     },
     devices: devices.map((d) => ({
       type: typeLabel(d.type),
@@ -727,6 +770,45 @@ export default function BranchIntakePage() {
     }
   }, []);
 
+  const lookupEmployee = useCallback(async (branchId, contactOverride = null) => {
+    const emailLocal = contactOverride?.emailLocal ?? employee.emailLocal;
+    const phoneLocal = contactOverride?.phoneLocal ?? employee.phoneLocal;
+    const email = buildIntakeEmail(emailLocal);
+    const phone = buildIntakePhone(phoneLocal);
+
+    if (!email && !phone) {
+      setMatchedEmployee(null);
+      setMyExistingDevices([]);
+      return null;
+    }
+
+    const res = await fetch(`${API_BASE}/public/employees/lookup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branchId, email, phone }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.ok) {
+      throw new Error(json?.message || 'Unable to look up your profile.');
+    }
+
+    const found = json.data?.employee || null;
+    const devices = json.data?.devices || [];
+    setMatchedEmployee(found);
+    setMyExistingDevices(devices);
+
+    if (found) {
+      setEmployee((prev) => ({
+        ...prev,
+        firstName: prev.firstName.trim() || found.firstName || '',
+        lastName: prev.lastName.trim() || found.lastName || '',
+        jobTitle: prev.jobTitle.trim() || found.jobTitle || '',
+      }));
+    }
+
+    return found;
+  }, [employee.emailLocal, employee.phoneLocal]);
+
   const loadBranchData = useCallback(async (code) => {
     const [branchRes, eqRes] = await Promise.all([
       fetch(`${API_BASE}/public/branches/${encodeURIComponent(code)}`),
@@ -746,6 +828,7 @@ export default function BranchIntakePage() {
         branchPrinters: eqJson.data?.branchPrinters || [],
       });
     }
+    return branchJson.data;
   }, []);
 
   useEffect(() => {
@@ -754,15 +837,23 @@ export default function BranchIntakePage() {
       try {
         await Promise.all([loadCatalog(), loadPublicSettings()]);
         if (branchCode) {
-          const stored = readStoredSubmission(branchCode);
-          if (stored) {
-            if (!cancelled) {
-              setSubmissionSummary(stored);
-              setDone(true);
+          const branchData = await loadBranchData(branchCode);
+          const storedContact = readStoredContact(branchCode);
+          if (storedContact && !cancelled) {
+            setEmployee((prev) => ({
+              ...prev,
+              emailLocal: storedContact.emailLocal || prev.emailLocal,
+              phoneLocal: storedContact.phoneLocal || prev.phoneLocal,
+            }));
+            if (branchData?.id && (storedContact.emailLocal || storedContact.phoneLocal)) {
+              try {
+                await lookupEmployee(branchData.id, storedContact);
+              } catch {
+                // Non-blocking on initial load — user can retry on Next
+              }
             }
           }
-          await loadBranchData(branchCode);
-          if (!cancelled && !stored) setStep(1);
+          if (!cancelled) setStep(1);
         }
         const res = await fetch(`${API_BASE}/public/branches`);
         const json = await res.json().catch(() => ({}));
@@ -774,7 +865,7 @@ export default function BranchIntakePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [branchCode, loadBranchData, loadCatalog, loadPublicSettings]);
+  }, [branchCode, loadBranchData, loadCatalog, loadPublicSettings, lookupEmployee]);
 
   const deviceTypeOptions = useMemo(() => {
     const fromCatalog = deviceTypes.map((t) => ({
@@ -838,7 +929,13 @@ export default function BranchIntakePage() {
 
   const canNext = () => {
     if (step === 0) return Boolean(String(branch?.name || '').trim().length >= 2);
-    if (step === 1) return Boolean(employee.firstName.trim() && employee.lastName.trim());
+    if (step === 1) {
+      return Boolean(
+        employee.firstName.trim()
+        && employee.lastName.trim()
+        && (employee.emailLocal.trim() || employee.phoneLocal.trim()),
+      );
+    }
     if (step === 2) return true;
     if (step === 3) return true;
     return true;
@@ -858,6 +955,25 @@ export default function BranchIntakePage() {
       }
       return;
     }
+    if (step === 1) {
+      setLookupLoading(true);
+      try {
+        const resolvedBranch = branch?.id ? branch : await resolveBranchSelection();
+        if (!resolvedBranch?.id) {
+          throw new Error('Branch is required before continuing.');
+        }
+        storeContact(resolvedBranch.code || branchCode, {
+          emailLocal: employee.emailLocal,
+          phoneLocal: employee.phoneLocal,
+        });
+        await lookupEmployee(resolvedBranch.id);
+      } catch (err) {
+        setError(err?.message || 'Unable to look up your profile.');
+        return;
+      } finally {
+        setLookupLoading(false);
+      }
+    }
     if (step === 4) {
       await handleSubmit();
       return;
@@ -865,11 +981,25 @@ export default function BranchIntakePage() {
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
 
+  const handleAddMoreDevices = () => {
+    setDone(false);
+    setSubmissionSummary(null);
+    setDevices([]);
+    setPrinters([]);
+    setDraftDevice(emptyDraftDevice());
+    setError('');
+    setStep(2);
+  };
+
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
   const commitDraftDevice = () => {
     if (!draftDevice.type) {
       setError('Select a device type.');
+      return;
+    }
+    if (!draftDevice.serialNumber.trim()) {
+      setError('Enter a serial number (S/N) for this device.');
       return;
     }
     setDevices((prev) => [...prev, { ...draftDevice }]);
@@ -884,21 +1014,27 @@ export default function BranchIntakePage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     setError('');
+    if (devices.some((d) => !d.serialNumber?.trim())) {
+      setError('Enter a serial number (S/N) for each device.');
+      setSubmitting(false);
+      return;
+    }
+    if (printers.some((p) => !p.serialNumber?.trim())) {
+      setError('Enter a serial number (S/N) for each printer.');
+      setSubmitting(false);
+      return;
+    }
     try {
       const resolvedBranch = await resolveBranchSelection();
       const payload = {
         branchId: resolvedBranch.id,
-        employeeId: null,
+        employeeId: matchedEmployee?.id || null,
         newEmployee: {
           firstName: employee.firstName,
           lastName: employee.lastName,
           jobTitle: employee.jobTitle,
-          phone: employee.phoneLocal.trim()
-            ? `+260${employee.phoneLocal.trim().replace(/^0+/, '')}`
-            : '',
-          email: employee.emailLocal.trim()
-            ? `${employee.emailLocal.trim()}@goodfellow.co.zm`
-            : '',
+          phone: buildIntakePhone(employee.phoneLocal),
+          email: buildIntakeEmail(employee.emailLocal),
         },
         devices: devices.map((d) => ({
           type: d.type,
@@ -922,6 +1058,30 @@ export default function BranchIntakePage() {
       if (!res.ok || !json?.ok) {
         throw new Error(json?.message || 'Submission failed');
       }
+
+      storeContact(resolvedBranch.code, {
+        emailLocal: employee.emailLocal,
+        phoneLocal: employee.phoneLocal,
+      });
+
+      const returnedEmployeeId = json.data?.employeeId || matchedEmployee?.id || null;
+      if (returnedEmployeeId) {
+        const lookupRes = await fetch(`${API_BASE}/public/employees/lookup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            branchId: resolvedBranch.id,
+            email: buildIntakeEmail(employee.emailLocal),
+            phone: buildIntakePhone(employee.phoneLocal),
+          }),
+        });
+        const lookupJson = await lookupRes.json().catch(() => ({}));
+        if (lookupRes.ok && lookupJson?.ok) {
+          setMatchedEmployee(lookupJson.data?.employee || matchedEmployee);
+          setMyExistingDevices(lookupJson.data?.devices || []);
+        }
+      }
+
       const summary = {
         ...buildSubmissionSummary(),
         branch: {
@@ -930,7 +1090,6 @@ export default function BranchIntakePage() {
           city: resolvedBranch.city || '',
         },
       };
-      storeSubmission(resolvedBranch.code, summary);
       setSubmissionSummary({ ...summary, submittedAt: new Date().toISOString() });
       setDone(true);
     } catch (err) {
@@ -963,7 +1122,12 @@ export default function BranchIntakePage() {
   }
 
   if (done && submissionSummary) {
-    return <IntakeSuccessScreen summary={submissionSummary} />;
+    return (
+      <IntakeSuccessScreen
+        summary={submissionSummary}
+        onAddMore={handleAddMoreDevices}
+      />
+    );
   }
 
   return (
@@ -1014,7 +1178,9 @@ export default function BranchIntakePage() {
 
       {step === 1 && (
         <div className="space-y-4">
-          <p className="text-sm text-navy-600">Enter your employee details for this branch.</p>
+          <p className="text-sm text-navy-600">
+            Enter your employee details. Use the same email or phone as before if you are adding more devices.
+          </p>
           <div className="space-y-3">
             <Field label="Job title">
               <input
@@ -1040,7 +1206,7 @@ export default function BranchIntakePage() {
                 />
               </Field>
             </div>
-            <Field label="Email">
+            <Field label="Email" required={!employee.phoneLocal.trim()}>
               <div className="space-y-1">
                 <input
                   className={inputClass}
@@ -1054,10 +1220,10 @@ export default function BranchIntakePage() {
                   autoCapitalize="none"
                   autoCorrect="off"
                 />
-                <p className="text-xs text-navy-500">Use your Goodfellow email if you have one.</p>
+                <p className="text-xs text-navy-500">Enter your Goodfellow email or phone so we can find your existing devices.</p>
               </div>
             </Field>
-            <Field label="Phone">
+            <Field label="Phone" required={!employee.emailLocal.trim()}>
               <div className="flex min-w-0 items-stretch overflow-hidden rounded-xl border border-navy-200 bg-white focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/20">
                 <span className="flex min-h-[48px] shrink-0 items-center border-r border-navy-200 bg-navy-50 px-3 text-[16px] font-medium text-navy-600">
                   +260
@@ -1077,13 +1243,12 @@ export default function BranchIntakePage() {
             </Field>
           </div>
 
-          {existingEquipment.employeeDevices.length > 0 && (
-            <div className="rounded-xl bg-navy-50 px-4 py-3 text-xs text-navy-600">
-              <p className="font-medium text-navy-800 mb-1">Already recorded at this branch</p>
-              {existingEquipment.employeeDevices.slice(0, 5).map((d) => (
-                <p key={d.id}>· {d.category}: {d.name} ({d.employeeName || 'staff'})</p>
-              ))}
-            </div>
+          {matchedEmployee && myExistingDevices.length > 0 && (
+            <ExistingDevicesPanel
+              devices={myExistingDevices}
+              title={`Welcome back, ${matchedEmployee.firstName}!`}
+              subtitle={`You already have ${myExistingDevices.length} device${myExistingDevices.length === 1 ? '' : 's'} on file at this branch.`}
+            />
           )}
         </div>
       )}
@@ -1093,6 +1258,14 @@ export default function BranchIntakePage() {
           <p className="text-sm text-navy-600">
             Add each device you use, if any. You can skip this step and continue without adding devices.
           </p>
+
+          {myExistingDevices.length > 0 && (
+            <ExistingDevicesPanel
+              devices={myExistingDevices}
+              title={`Your devices on file (${myExistingDevices.length})`}
+              subtitle="These are already linked to your profile. Add any new devices below."
+            />
+          )}
 
           <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm space-y-3">
             <p className="text-sm font-semibold text-navy-900">Add a device</p>
@@ -1119,12 +1292,13 @@ export default function BranchIntakePage() {
                 placeholder="e.g. EliteBook 840"
               />
             </Field>
-            <Field label="Serial / S/N (optional)">
+            <Field label="Serial / S/N" required>
               <input
                 className={inputClass}
                 value={draftDevice.serialNumber}
                 onChange={(e) => setDraftDevice((p) => ({ ...p, serialNumber: e.target.value }))}
-                placeholder="Auto-generated if blank"
+                placeholder="Enter serial number"
+                required
               />
             </Field>
             <button
@@ -1147,7 +1321,7 @@ export default function BranchIntakePage() {
             <button
               type="button"
               onClick={commitDraftDevice}
-              disabled={!draftDevice.type}
+              disabled={!draftDevice.type || !draftDevice.serialNumber.trim()}
               className="w-full min-h-[48px] rounded-xl border border-dashed border-cyan-300 bg-cyan-50/40 text-sm font-semibold text-cyan-800 hover:bg-cyan-50 disabled:opacity-50"
             >
               + Add to your list
@@ -1250,9 +1424,21 @@ export default function BranchIntakePage() {
               {employee.jobTitle ? ` · ${employee.jobTitle}` : ''}
             </p>
           </div>
+          {myExistingDevices.length > 0 && (
+            <div className="rounded-2xl border border-cyan-100 bg-cyan-50/50 p-4">
+              <p className="font-semibold text-navy-900 mb-2">
+                Already on your profile ({myExistingDevices.length})
+              </p>
+              {myExistingDevices.map((d) => (
+                <p key={d.id} className="text-navy-600">
+                  · {d.category}{d.brandName ? ` — ${d.brandName}` : ''}{d.sku ? ` (S/N: ${d.sku})` : ''}
+                </p>
+              ))}
+            </div>
+          )}
           {devices.length > 0 && (
             <div className="rounded-2xl border border-navy-100 bg-white p-4">
-              <p className="font-semibold text-navy-900 mb-2">Your devices ({devices.length})</p>
+              <p className="font-semibold text-navy-900 mb-2">New devices to add ({devices.length})</p>
               {devices.map((d, i) => (
                 <p key={i} className="text-navy-600">· {typeLabel(d.type)}{d.brandId ? ` — ${brandName(d.brandId)}` : ''}{d.model ? ` ${d.model}` : ''}</p>
               ))}
@@ -1289,11 +1475,12 @@ export default function BranchIntakePage() {
             disabled={
               submitting
               || resolvingBranch
+              || lookupLoading
               || !canNext()
             }
             className="flex min-h-[48px] flex-[2] items-center justify-center gap-1 rounded-xl bg-cyan-600 text-[16px] font-semibold text-white disabled:opacity-50"
           >
-            {submitting ? 'Submitting…' : resolvingBranch ? 'Saving branch…' : step === 4 ? 'Submit report' : (
+            {submitting ? 'Submitting…' : resolvingBranch ? 'Saving branch…' : lookupLoading ? 'Looking you up…' : step === 4 ? 'Submit report' : (
               <>Next <ChevronRight size={18} /></>
             )}
           </button>

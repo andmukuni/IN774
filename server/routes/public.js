@@ -13,8 +13,9 @@ import {
   buildDeviceName,
   resolveBrandId,
   resolveEmployeeCode,
-  resolveProductSn,
   resolveBranchByName,
+  findEmployeeByContact,
+  fetchEmployeeIntakeDevices,
 } from '../utils/intakeHelpers.js';
 import { logProductRegistration, PRODUCT_EVENT_TYPES } from '../utils/productEventHelpers.js';
 import { getPublicSettings } from '../utils/systemSettingsHelpers.js';
@@ -209,6 +210,53 @@ export function createPublicRouter() {
     }
   });
 
+  router.post('/employees/lookup', intakeRateLimit, async (req, res) => {
+    try {
+      const publicSettings = await getPublicSettings();
+      if (!publicSettings.intakeEnabled) {
+        return res.status(403).json({
+          ok: false,
+          message: 'Branch equipment reporting is temporarily disabled. Please contact your administrator.',
+        });
+      }
+
+      const branchId = String(req.body?.branchId || '').trim();
+      const email = String(req.body?.email || '').trim();
+      const phone = String(req.body?.phone || '').trim();
+
+      if (!branchId) {
+        return res.status(400).json({ ok: false, message: 'Branch is required.' });
+      }
+      if (!email && !phone) {
+        return res.status(400).json({ ok: false, message: 'Email or phone is required to look up your profile.' });
+      }
+
+      const [[branch]] = await pool.query(
+        'SELECT id FROM branches WHERE id = ? AND status = \'active\' LIMIT 1',
+        [branchId],
+      );
+      if (!branch) {
+        return res.status(404).json({ ok: false, message: 'Branch not found.' });
+      }
+
+      const employee = await findEmployeeByContact(branch.id, { email, phone });
+      const devices = employee ? await fetchEmployeeIntakeDevices(employee.id) : [];
+
+      res.json({
+        ok: true,
+        data: {
+          employee,
+          devices,
+        },
+      });
+    } catch (error) {
+      if (error?.status) {
+        return res.status(error.status).json({ ok: false, message: error.message });
+      }
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
   router.post('/intake', intakeRateLimit, async (req, res) => {
     try {
       const publicSettings = await getPublicSettings();
@@ -250,22 +298,30 @@ export function createPublicRouter() {
           return res.status(400).json({ ok: false, message: 'First and last name are required.' });
         }
 
-        const code = await resolveEmployeeCode(emp.employeeCode);
-        resolvedEmployeeId = `emp-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-        await pool.query(
-          `INSERT INTO employees (id, employee_code, first_name, last_name, email, phone, job_title, branch_id, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-          [
-            resolvedEmployeeId,
-            code,
-            firstName,
-            lastName,
-            String(emp.email || '').trim(),
-            String(emp.phone || '').trim(),
-            String(emp.jobTitle || '').trim(),
-            branch.id,
-          ],
-        );
+        const email = String(emp.email || '').trim();
+        const phone = String(emp.phone || '').trim();
+        const existingEmployee = await findEmployeeByContact(branch.id, { email, phone });
+
+        if (existingEmployee) {
+          resolvedEmployeeId = existingEmployee.id;
+        } else {
+          const code = await resolveEmployeeCode(emp.employeeCode);
+          resolvedEmployeeId = `emp-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+          await pool.query(
+            `INSERT INTO employees (id, employee_code, first_name, last_name, email, phone, job_title, branch_id, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+            [
+              resolvedEmployeeId,
+              code,
+              firstName,
+              lastName,
+              email,
+              phone,
+              String(emp.jobTitle || '').trim(),
+              branch.id,
+            ],
+          );
+        }
       } else {
         const [[employee]] = await pool.query(
           'SELECT id, branch_id FROM employees WHERE id = ? AND status = \'active\' LIMIT 1',
@@ -299,7 +355,10 @@ export function createPublicRouter() {
           brandName,
           model: device.model,
         });
-        const sku = await resolveProductSn(device.serialNumber || device.sku);
+        const sku = String(device.serialNumber || device.sku || '').trim();
+        if (!sku) {
+          return res.status(400).json({ ok: false, message: 'Serial number (S/N) is required for each device.' });
+        }
         const productId = `prd-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 
         await pool.query(
@@ -334,7 +393,10 @@ export function createPublicRouter() {
           brandName,
           model: printer.model,
         });
-        const sku = await resolveProductSn(printer.serialNumber || printer.sku);
+        const sku = String(printer.serialNumber || printer.sku || '').trim();
+        if (!sku) {
+          return res.status(400).json({ ok: false, message: 'Serial number (S/N) is required for each printer.' });
+        }
         const productId = `prd-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 
         await pool.query(
@@ -363,6 +425,9 @@ export function createPublicRouter() {
         },
       });
     } catch (error) {
+      if (error?.status) {
+        return res.status(error.status).json({ ok: false, message: error.message });
+      }
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A duplicate serial number or employee code was detected.' });
       }

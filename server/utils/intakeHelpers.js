@@ -1,6 +1,12 @@
 import crypto from 'crypto';
 import pool from '../db.js';
 import { mapBranchRow } from './branchHelpers.js';
+import { mapEmployeeRow } from './employeeHelpers.js';
+import {
+  mapProductRow,
+  PRODUCT_JOIN_SQL,
+  PRODUCT_SELECT_FIELDS,
+} from './inventoryHelpers.js';
 
 export const INTAKE_EMPLOYEE_DEVICE_TYPES = [
   'Monitor',
@@ -12,6 +18,71 @@ export const INTAKE_EMPLOYEE_DEVICE_TYPES = [
   'TV',
 ];
 export const INTAKE_BRANCH_DEVICE_TYPES = ['Printer'];
+
+export function normalizeIntakeEmail(email) {
+  const raw = String(email || '').trim().toLowerCase();
+  if (!raw) return '';
+  if (raw.includes('@')) return raw;
+  return `${raw}@goodfellow.co.zm`;
+}
+
+export function normalizeIntakePhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  let local = digits;
+  if (local.startsWith('260')) local = local.slice(3);
+  local = local.replace(/^0+/, '');
+  return local ? `+260${local}` : '';
+}
+
+export async function findEmployeeByContact(branchId, { email, phone } = {}) {
+  const normalizedEmail = normalizeIntakeEmail(email);
+  const normalizedPhone = normalizeIntakePhone(phone);
+  if (!normalizedEmail && !normalizedPhone) return null;
+
+  const [rows] = await pool.query(
+    `SELECT e.id, e.employee_code, e.first_name, e.last_name, e.email, e.phone, e.job_title, e.branch_id, e.status, e.updated_at,
+            b.code AS branch_code, b.name AS branch_name
+     FROM employees e
+     LEFT JOIN branches b ON b.id = e.branch_id
+     WHERE e.branch_id = ? AND e.status = 'active'`,
+    [branchId],
+  );
+
+  const emailMatch = normalizedEmail
+    ? rows.find((row) => normalizeIntakeEmail(row.email) === normalizedEmail)
+    : null;
+  const phoneMatch = normalizedPhone
+    ? rows.find((row) => normalizeIntakePhone(row.phone) === normalizedPhone)
+    : null;
+
+  if (emailMatch && phoneMatch && emailMatch.id !== phoneMatch.id) {
+    const err = new Error(
+      'The email and phone number match different employee records. Please contact your branch manager.',
+    );
+    err.status = 409;
+    throw err;
+  }
+
+  const match = emailMatch || phoneMatch || null;
+  return match ? mapEmployeeRow(match) : null;
+}
+
+export async function fetchEmployeeIntakeDevices(employeeId) {
+  if (!employeeId) return [];
+
+  const placeholders = INTAKE_EMPLOYEE_DEVICE_TYPES.map(() => '?').join(', ');
+  const [rows] = await pool.query(
+    `SELECT ${PRODUCT_SELECT_FIELDS}
+     FROM products p ${PRODUCT_JOIN_SQL}
+     WHERE p.employee_id = ? AND p.status != 'discontinued'
+       AND p.category IN (${placeholders})
+     ORDER BY p.category ASC, p.name ASC`,
+    [employeeId, ...INTAKE_EMPLOYEE_DEVICE_TYPES],
+  );
+
+  return rows.map(mapProductRow);
+}
 
 export async function resolveProductSn(sku, { productId = null } = {}) {
   const trimmed = String(sku || '').trim();

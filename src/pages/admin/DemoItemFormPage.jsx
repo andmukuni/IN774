@@ -108,6 +108,10 @@ export default function DemoItemFormPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.sku.trim()) {
+      toast.error('S/N is required.');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -168,7 +172,8 @@ export default function DemoItemFormPage() {
                 name="sku"
                 value={form.sku}
                 onChange={(e) => update('sku', e.target.value)}
-                placeholder="Optional — auto-generated if blank"
+                placeholder="Enter serial number"
+                required
               />
               <FormField
                 label="Name"
