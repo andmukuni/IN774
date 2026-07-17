@@ -12,7 +12,6 @@ import { getAllSettings } from './systemSettingsHelpers.js';
 import { sendEmail } from './emailService.js';
 
 const TOKEN_TTL_DAYS = 14;
-const INTAKE_DEVICE_SQL = INTAKE_EMPLOYEE_DEVICE_TYPES.map(() => '?').join(', ');
 
 export async function ensureReminderTables(db = pool) {
   await db.query(`
