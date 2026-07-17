@@ -6,6 +6,14 @@ export const SETTING_KEYS = {
   SUPPORT_PHONE: 'support_phone',
   INTAKE_ENABLED: 'intake_enabled',
   INTAKE_INTRO_TEXT: 'intake_intro_text',
+  SMTP_ENABLED: 'smtp_enabled',
+  SMTP_HOST: 'smtp_host',
+  SMTP_PORT: 'smtp_port',
+  SMTP_SECURE: 'smtp_secure',
+  SMTP_USER: 'smtp_user',
+  SMTP_PASSWORD: 'smtp_password',
+  SMTP_FROM_EMAIL: 'smtp_from_email',
+  SMTP_FROM_NAME: 'smtp_from_name',
 };
 
 const DEFAULT_SETTINGS = {
@@ -15,6 +23,14 @@ const DEFAULT_SETTINGS = {
   [SETTING_KEYS.INTAKE_ENABLED]: 'true',
   [SETTING_KEYS.INTAKE_INTRO_TEXT]:
     'Select your branch to report computers and printers in use at your location.',
+  [SETTING_KEYS.SMTP_ENABLED]: 'false',
+  [SETTING_KEYS.SMTP_HOST]: '',
+  [SETTING_KEYS.SMTP_PORT]: '587',
+  [SETTING_KEYS.SMTP_SECURE]: 'false',
+  [SETTING_KEYS.SMTP_USER]: '',
+  [SETTING_KEYS.SMTP_PASSWORD]: '',
+  [SETTING_KEYS.SMTP_FROM_EMAIL]: '',
+  [SETTING_KEYS.SMTP_FROM_NAME]: '',
 };
 
 const EDITABLE_KEYS = Object.values(SETTING_KEYS);
@@ -50,12 +66,21 @@ function parseBool(value, fallback = true) {
 
 function mapSettingsRow(rows = []) {
   const map = Object.fromEntries(rows.map((row) => [row.setting_key, row.setting_value]));
+  const smtpPassword = String(map[SETTING_KEYS.SMTP_PASSWORD] || '').trim();
   return {
     companyName: map[SETTING_KEYS.COMPANY_NAME] || DEFAULT_SETTINGS[SETTING_KEYS.COMPANY_NAME],
     supportEmail: map[SETTING_KEYS.SUPPORT_EMAIL] || '',
     supportPhone: map[SETTING_KEYS.SUPPORT_PHONE] || '',
     intakeEnabled: parseBool(map[SETTING_KEYS.INTAKE_ENABLED], true),
     intakeIntroText: map[SETTING_KEYS.INTAKE_INTRO_TEXT] || DEFAULT_SETTINGS[SETTING_KEYS.INTAKE_INTRO_TEXT],
+    smtpEnabled: parseBool(map[SETTING_KEYS.SMTP_ENABLED], false),
+    smtpHost: map[SETTING_KEYS.SMTP_HOST] || '',
+    smtpPort: map[SETTING_KEYS.SMTP_PORT] || DEFAULT_SETTINGS[SETTING_KEYS.SMTP_PORT],
+    smtpSecure: parseBool(map[SETTING_KEYS.SMTP_SECURE], false),
+    smtpUser: map[SETTING_KEYS.SMTP_USER] || '',
+    smtpPasswordConfigured: Boolean(smtpPassword),
+    smtpFromEmail: map[SETTING_KEYS.SMTP_FROM_EMAIL] || '',
+    smtpFromName: map[SETTING_KEYS.SMTP_FROM_NAME] || '',
   };
 }
 
@@ -85,18 +110,39 @@ export async function updateSettings(patch = {}, db = pool) {
     supportPhone: SETTING_KEYS.SUPPORT_PHONE,
     intakeEnabled: SETTING_KEYS.INTAKE_ENABLED,
     intakeIntroText: SETTING_KEYS.INTAKE_INTRO_TEXT,
+    smtpEnabled: SETTING_KEYS.SMTP_ENABLED,
+    smtpHost: SETTING_KEYS.SMTP_HOST,
+    smtpPort: SETTING_KEYS.SMTP_PORT,
+    smtpSecure: SETTING_KEYS.SMTP_SECURE,
+    smtpUser: SETTING_KEYS.SMTP_USER,
+    smtpFromEmail: SETTING_KEYS.SMTP_FROM_EMAIL,
+    smtpFromName: SETTING_KEYS.SMTP_FROM_NAME,
   };
 
   for (const [field, key] of Object.entries(allowed)) {
     if (!(field in patch)) continue;
     let value = patch[field];
-    if (field === 'intakeEnabled') value = value ? 'true' : 'false';
+    if (field === 'intakeEnabled' || field === 'smtpEnabled' || field === 'smtpSecure') {
+      value = value ? 'true' : 'false';
+    }
     await db.query(
       `INSERT INTO system_settings (setting_key, setting_value)
        VALUES (?, ?)
        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
       [key, String(value ?? '').trim()],
     );
+  }
+
+  if ('smtpPassword' in patch) {
+    const nextPassword = String(patch.smtpPassword ?? '').trim();
+    if (nextPassword) {
+      await db.query(
+        `INSERT INTO system_settings (setting_key, setting_value)
+         VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+        [SETTING_KEYS.SMTP_PASSWORD, nextPassword],
+      );
+    }
   }
 
   return getAllSettings(db);

@@ -373,6 +373,14 @@ export function createAdminRouter() {
       if ('supportPhone' in body) patch.supportPhone = body.supportPhone;
       if ('intakeEnabled' in body) patch.intakeEnabled = body.intakeEnabled;
       if ('intakeIntroText' in body) patch.intakeIntroText = body.intakeIntroText;
+      if ('smtpEnabled' in body) patch.smtpEnabled = body.smtpEnabled;
+      if ('smtpHost' in body) patch.smtpHost = body.smtpHost;
+      if ('smtpPort' in body) patch.smtpPort = body.smtpPort;
+      if ('smtpSecure' in body) patch.smtpSecure = body.smtpSecure;
+      if ('smtpUser' in body) patch.smtpUser = body.smtpUser;
+      if ('smtpPassword' in body) patch.smtpPassword = body.smtpPassword;
+      if ('smtpFromEmail' in body) patch.smtpFromEmail = body.smtpFromEmail;
+      if ('smtpFromName' in body) patch.smtpFromName = body.smtpFromName;
 
       const settings = await updateSettings(patch);
       const appUrl = String(req.headers.origin || process.env.APP_URL || '').trim().replace(/\/$/, '');
