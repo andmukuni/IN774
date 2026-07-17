@@ -12,6 +12,8 @@ const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage')
 const DemoItemsListPage = lazy(() => import('./pages/admin/DemoItemsListPage'));
 const DemoItemFormPage = lazy(() => import('./pages/admin/DemoItemFormPage'));
 const DemoUsersPage = lazy(() => import('./pages/admin/DemoUsersPage'));
+const EmployeeRemindersListPage = lazy(() => import('./pages/admin/EmployeeRemindersListPage'));
+const EmployeeReminderShowPage = lazy(() => import('./pages/admin/EmployeeReminderShowPage'));
 const SystemSettingsPage = lazy(() => import('./pages/admin/SystemSettingsPage'));
 const DemoAccessControlPage = lazy(() => import('./pages/admin/DemoAccessControlPage'));
 const CategoriesPage = lazy(() => import('./pages/admin/CategoriesPage'));
@@ -135,6 +137,8 @@ export default function App() {
               <Route path="employees/new" element={<EmployeeFormPage />} />
               <Route path="employees/:id/edit" element={<EmployeeFormPage />} />
               <Route path="employees/:id" element={<EmployeeShowPage />} />
+              <Route path="employee-reminders" element={<EmployeeRemindersListPage />} />
+              <Route path="employee-reminders/:id" element={<EmployeeReminderShowPage />} />
               <Route path="users" element={<DemoUsersPage />} />
               <Route path="users/new" element={<UserFormPage />} />
               <Route path="users/:id/edit" element={<UserFormPage />} />

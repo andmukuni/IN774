@@ -57,6 +57,7 @@ export const NAV_PERMISSION_MAP = {
   branches: 'branches.view',
   'branches-create': 'branches.manage',
   employees: 'employees.view',
+  'employee-reminders': 'employees.view',
   'employees-create': 'employees.manage',
   users: 'users.view',
   settings: 'settings.manage',

@@ -21,6 +21,7 @@ import {
   getPublicSettings,
   updateSettings,
 } from '../utils/systemSettingsHelpers.js';
+import { createReminderRouter } from './reminders.js';
 
 const BRAND_SORT_COLUMN_MAP = {
   code: 'code',
@@ -1584,6 +1585,8 @@ export function createAdminRouter() {
       res.status(500).json({ ok: false, message: error.message });
     }
   });
+
+  router.use('/reminders', createReminderRouter());
 
   return router;
 }

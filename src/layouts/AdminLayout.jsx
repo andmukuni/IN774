@@ -15,6 +15,7 @@ import {
   UserRound,
   BadgeCheck,
   ExternalLink,
+  Mail,
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import AdminUserMenu from '../components/admin/AdminUserMenu';
@@ -32,6 +33,7 @@ const INVENTORY_NAVIGATION = [
   { key: 'items', name: 'Products', to: '/admin/items', icon: Package, badgeKey: null },
   { key: 'branches', name: 'Branches', to: '/admin/branches', icon: Building2 },
   { key: 'employees', name: 'Employees', to: '/admin/employees', icon: UserRound },
+  { key: 'employee-reminders', name: 'Employee reminders', to: '/admin/employee-reminders', icon: Mail },
   { key: 'items-low-stock', name: 'Low Stock', to: '/admin/items?status=low_stock', icon: AlertTriangle, badgeKey: 'lowStock' },
   { key: 'brands', name: 'Brands', to: '/admin/brands', icon: BadgeCheck },
   { key: 'categories', name: 'Product Types', to: '/admin/categories', icon: Tags },

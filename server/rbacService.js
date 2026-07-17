@@ -149,6 +149,7 @@ export function resolveRouteAdminPermission(req) {
   if (path.startsWith('/api/admin/brands')) return method === 'GET' ? 'items.view' : 'items.manage';
   if (path.startsWith('/api/admin/product-types')) return method === 'GET' ? 'items.view' : 'items.manage';
   if (path.startsWith('/api/admin/employees')) return method === 'GET' ? 'employees.view' : 'employees.manage';
+  if (path.startsWith('/api/admin/reminders')) return method === 'GET' ? 'employees.view' : 'employees.manage';
   if (path === '/api/admin/dashboard/stats') return 'dashboard.view';
 
   return 'dashboard.view';

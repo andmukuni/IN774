@@ -92,6 +92,18 @@ export async function getAllSettings(db = pool) {
   return mapSettingsRow(rows);
 }
 
+export async function getSmtpCredentials(db = pool) {
+  const settings = await getAllSettings(db);
+  const [[row]] = await db.query(
+    'SELECT setting_value FROM system_settings WHERE setting_key = ? LIMIT 1',
+    [SETTING_KEYS.SMTP_PASSWORD],
+  );
+  return {
+    ...settings,
+    smtpPassword: String(row?.setting_value || '').trim(),
+  };
+}
+
 export async function getPublicSettings(db = pool) {
   const settings = await getAllSettings(db);
   return {

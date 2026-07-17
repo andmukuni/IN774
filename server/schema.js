@@ -6,6 +6,7 @@ import { ensureRbacTables, seedRbac } from './rbacService.js';
 import { computeProductStatus } from './utils/inventoryHelpers.js';
 import { ensureProductEventsTable, backfillProductEvents } from './utils/productEventHelpers.js';
 import { ensureSystemSettingsTable, seedSystemSettings } from './utils/systemSettingsHelpers.js';
+import { ensureReminderTables } from './utils/reminderHelpers.js';
 import { GOODFELLOW_BRANCHES } from './seed/goodfellowBranches.js';
 import { COMPUTER_BRANDS } from './seed/computerBrands.js';
 import { PRODUCT_TYPES } from './seed/productTypes.js';
@@ -123,6 +124,8 @@ export async function ensureSchema() {
   await ensureSystemSettingsTable(pool);
 
   await ensureRbacTables(pool);
+
+  await ensureReminderTables(pool);
 }
 
 async function ensureNullableUnitPrice() {
