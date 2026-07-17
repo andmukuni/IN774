@@ -408,9 +408,37 @@ export async function fetchReminderSession(sessionId, db = pool) {
   return mapSessionRow(row);
 }
 
-export async function listReminderSessions({ limit = 25, offset = 0, search = '' } = {}, db = pool) {
+export async function listReminderSessions({
+  limit = 25,
+  offset = 0,
+  search = '',
+  name = '',
+  branchId = '',
+  status = '',
+  ids = [],
+} = {}, db = pool) {
   const clauses = [];
   const params = [];
+
+  if (ids.length) {
+    clauses.push(`s.id IN (${ids.map(() => '?').join(', ')})`);
+    params.push(...ids);
+  }
+
+  if (name) {
+    clauses.push('s.name LIKE ?');
+    params.push(`%${name}%`);
+  }
+
+  if (branchId) {
+    clauses.push('s.branch_id = ?');
+    params.push(branchId);
+  }
+
+  if (status) {
+    clauses.push('s.status = ?');
+    params.push(status);
+  }
 
   if (search) {
     clauses.push('(s.name LIKE ? OR b.name LIKE ? OR b.code LIKE ?)');

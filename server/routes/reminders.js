@@ -7,6 +7,13 @@ import {
   listReminderSessions,
   previewReminderCount,
 } from '../utils/reminderHelpers.js';
+import {
+  buildExportFilename,
+  buildExportSubtitle,
+  REMINDER_EXPORT_COLUMNS,
+  normalizeReminderExportRow,
+  sendTableExport,
+} from '../utils/catalogExportHelpers.js';
 import { parseTableQuery, buildPaginatedResponse } from '../utils/tableQuery.js';
 
 export function createReminderRouter() {
@@ -22,6 +29,42 @@ export function createReminderRouter() {
     }
   });
 
+  router.get('/sessions/export', async (req, res) => {
+    try {
+      const format = String(req.query.format || 'csv').trim().toLowerCase();
+      const filters = {
+        name: String(req.query.name || '').trim(),
+        branchId: String(req.query.branchId || req.query.branch_id || '').trim(),
+        status: String(req.query.status || '').trim(),
+        ids: String(req.query.ids || '').trim()
+          ? String(req.query.ids).split(',').map((id) => id.trim()).filter(Boolean)
+          : [],
+      };
+
+      const { data } = await listReminderSessions({
+        limit: 10000,
+        offset: 0,
+        ...filters,
+      });
+
+      const title = 'Employee Reminders';
+      const subtitle = buildExportSubtitle(filters, data.length);
+      const filename = buildExportFilename('employee-reminders', format === 'pdf' ? 'pdf' : 'csv', { suffix: filters.status || '' });
+
+      return sendTableExport(res, {
+        format,
+        columns: REMINDER_EXPORT_COLUMNS,
+        rows: data,
+        normalizeRow: normalizeReminderExportRow,
+        title,
+        subtitle,
+        filename,
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
   router.get('/sessions', async (req, res) => {
     try {
       const q = parseTableQuery(req.query);
@@ -29,6 +72,9 @@ export function createReminderRouter() {
         limit: q.limit,
         offset: q.offset,
         search: q.search,
+        name: String(req.query.name || '').trim(),
+        branchId: String(req.query.branchId || req.query.branch_id || '').trim(),
+        status: String(req.query.status || '').trim(),
       });
 
       if (req.query.draw != null || req.query.start != null) {

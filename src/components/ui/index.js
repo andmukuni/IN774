@@ -4,6 +4,7 @@ export { default as BreadcrumbNav } from './BreadcrumbNav';
 export { default as AdminStatCard } from './AdminStatCard';
 export { default as DataTable } from './DataTable';
 export { default as ListSearchFilters, emptySearchFilters } from './ListSearchFilters';
+export { default as DynamicListFilters, buildEmptyFilters } from './DynamicListFilters';
 export { default as FormField } from './FormField';
 export { default as Modal } from './Modal';
 export { default as RecordDetailView, productDetailFields, brandDetailFields, productTypeDetailFields, branchDetailFields, employeeDetailFields, userDetailFields } from './RecordDetailView';

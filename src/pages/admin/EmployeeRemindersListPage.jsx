@@ -1,17 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Send } from 'lucide-react';
 import {
   PageHeader,
   DataTable,
   Card,
-  ListSearchFilters,
-  emptySearchFilters,
+  DynamicListFilters,
   LoadingButton,
+  TableActionsMenu,
 } from '../../components/ui';
 import { dateHtml, textHtml } from '../../utils/datatableHelpers';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { useAdminTablePage } from '../../hooks/useAdminTablePage';
+import {
+  REMINDER_FILTER_FIELDS,
+  buildBranchOptions,
+  buildInitialFilters,
+  buildListExportParams,
+} from '../../config/adminListPageConfig';
 import { getApiBase } from '../../utils/apiBase';
 import { getAdminAuthHeaders } from '../../utils/authHeaders';
 
@@ -33,9 +40,9 @@ export default function EmployeeRemindersListPage() {
   const toast = useToast();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('employees.manage');
-  const tableRef = useRef(null);
-  const [filters, setFilters] = useState(emptySearchFilters);
-  const [appliedFilters, setAppliedFilters] = useState(emptySearchFilters);
+  const canView = hasPermission('employees.view');
+  const [filters, setFilters] = useState(() => buildInitialFilters(REMINDER_FILTER_FIELDS));
+  const [appliedFilters, setAppliedFilters] = useState(() => buildInitialFilters(REMINDER_FILTER_FIELDS));
   const [branches, setBranches] = useState([]);
   const [branchId, setBranchId] = useState('');
   const [sessionName, setSessionName] = useState('');
@@ -43,9 +50,23 @@ export default function EmployeeRemindersListPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [sending, setSending] = useState(false);
 
-  const reloadTable = useCallback(() => {
-    tableRef.current?.reload(false);
-  }, []);
+  const {
+    tableRef,
+    selectedCount,
+    clearSelection,
+    busy,
+    buildTableActions,
+    selectable,
+    reloadTable,
+  } = useAdminTablePage({
+    canView,
+    canManage: false,
+    exportPath: '/admin/reminders/sessions/export',
+    exportFilename: 'employee-reminders',
+    buildExportParams: (nextFilters, selectedIds) => buildListExportParams(nextFilters, selectedIds),
+    entityLabel: 'session',
+    entityLabelPlural: 'sessions',
+  });
 
   const loadBranches = useCallback(async () => {
     const res = await fetch(`${API_BASE}/admin/branches?limit=100`, {
@@ -116,51 +137,26 @@ export default function EmployeeRemindersListPage() {
   };
 
   const columns = useMemo(() => [
-    {
-      key: 'name',
-      label: 'Session',
-      render: (_, row) => textHtml(row.name),
-    },
-    {
-      key: 'branchName',
-      label: 'Branch',
-      render: (_, row) => textHtml(row.branchName || 'All branches'),
-    },
-    {
-      key: 'totalRecipients',
-      label: 'Recipients',
-      render: (_, row) => textHtml(String(row.totalRecipients ?? 0)),
-    },
-    {
-      key: 'sentCount',
-      label: 'Sent',
-      render: (_, row) => textHtml(String(row.sentCount ?? 0)),
-    },
-    {
-      key: 'clickedCount',
-      label: 'Clicked',
-      render: (_, row) => textHtml(String(row.clickedCount ?? 0)),
-    },
-    {
-      key: 'submittedCount',
-      label: 'Submitted',
-      render: (_, row) => textHtml(String(row.submittedCount ?? 0)),
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (_, row) => statusHtml(row.status),
-    },
-    {
-      key: 'sentAt',
-      label: 'Sent',
-      render: (_, row) => dateHtml(row.sentAt || row.createdAt),
-    },
+    { key: 'name', label: 'Session', render: (_, row) => textHtml(row.name) },
+    { key: 'branchName', label: 'Branch', render: (_, row) => textHtml(row.branchName || 'All branches') },
+    { key: 'totalRecipients', label: 'Recipients', render: (_, row) => textHtml(String(row.totalRecipients ?? 0)) },
+    { key: 'sentCount', label: 'Sent', render: (_, row) => textHtml(String(row.sentCount ?? 0)) },
+    { key: 'clickedCount', label: 'Clicked', render: (_, row) => textHtml(String(row.clickedCount ?? 0)) },
+    { key: 'submittedCount', label: 'Submitted', render: (_, row) => textHtml(String(row.submittedCount ?? 0)) },
+    { key: 'status', label: 'Status', render: (_, row) => statusHtml(row.status) },
+    { key: 'sentAt', label: 'Sent', render: (_, row) => dateHtml(row.sentAt || row.createdAt) },
   ], []);
 
-  const ajaxParams = useMemo(() => ({
-    search: appliedFilters.search,
-  }), [appliedFilters.search]);
+  const ajaxParams = useMemo(() => ({ ...appliedFilters }), [appliedFilters]);
+  const filterOptions = useMemo(() => ({
+    branches: buildBranchOptions(branches),
+  }), [branches]);
+
+  const tableActions = useMemo(() => buildTableActions({
+    appliedFilters,
+    includeDelete: false,
+    statusActions: [],
+  }), [appliedFilters, buildTableActions]);
 
   return (
     <div className="space-y-6">
@@ -236,19 +232,29 @@ export default function EmployeeRemindersListPage() {
         </Card>
       )}
 
-      <ListSearchFilters
+      <DynamicListFilters
+        fields={REMINDER_FILTER_FIELDS}
         values={filters}
         onChange={setFilters}
-        onApply={setAppliedFilters}
+        optionsMap={filterOptions}
+        onApply={(next) => {
+          setAppliedFilters(next);
+          clearSelection();
+        }}
         onClear={() => {
-          const cleared = emptySearchFilters();
+          const cleared = buildInitialFilters(REMINDER_FILTER_FIELDS);
           setFilters(cleared);
           setAppliedFilters(cleared);
+          clearSelection();
         }}
-        placeholder="Search session or branch..."
       />
 
-      <Card noPadding>
+      <Card
+        noPadding
+        actions={canView ? (
+          <TableActionsMenu selectedCount={selectedCount} disabled={busy} actions={tableActions} />
+        ) : null}
+      >
         <DataTable
           ref={tableRef}
           columns={columns}
@@ -258,7 +264,8 @@ export default function EmployeeRemindersListPage() {
           pageLength={25}
           emptyTitle="No reminder sessions yet"
           getRowHref={(row) => `/admin/employee-reminders/${row.id}`}
-          tableKey={`employee-reminders-${appliedFilters.search}`}
+          selectable={selectable}
+          tableKey={`employee-reminders-${Object.values(appliedFilters).join('-')}`}
         />
       </Card>
 

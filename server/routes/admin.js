@@ -8,6 +8,21 @@ import { computeProductStatus, mapProductRow, PRODUCT_JOIN_SQL, PRODUCT_SELECT_F
 import { mapBranchRow } from '../utils/branchHelpers.js';
 import { mapEmployeeRow } from '../utils/employeeHelpers.js';
 import {
+  buildExportFilename,
+  buildExportSubtitle,
+  BRANCH_EXPORT_COLUMNS,
+  BRAND_EXPORT_COLUMNS,
+  PRODUCT_EXPORT_COLUMNS,
+  PRODUCT_TYPE_EXPORT_COLUMNS,
+  normalizeBranchExportRow,
+  normalizeBrandExportRow,
+  normalizeProductExportRow,
+  normalizeProductTypeExportRow,
+  normalizeUserExportRow,
+  sendTableExport,
+  USER_EXPORT_COLUMNS,
+} from '../utils/catalogExportHelpers.js';
+import {
   buildEmployeesCsv,
   buildEmployeesExportFilename,
   buildEmployeesPdfBuffer,
@@ -74,7 +89,7 @@ const EMPLOYEE_SORT_COLUMN_MAP = {
   updated_at: 'e.updated_at',
 };
 
-function parseEmployeeIdList(value) {
+function parseIdList(value) {
   if (Array.isArray(value)) {
     return value.map((id) => String(id || '').trim()).filter(Boolean);
   }
@@ -91,7 +106,7 @@ function parseEmployeeFilters(query = {}) {
     branchId: String(query.branchId || query.branch_id || '').trim(),
     status: String(query.status || '').trim(),
     search: String(query.search || query.q || '').trim(),
-    ids: parseEmployeeIdList(query.ids),
+    ids: parseIdList(query.ids),
   };
 }
 
@@ -165,21 +180,57 @@ function buildEmployeeWhere(filters = {}) {
 }
 
 function buildEmployeeExportSubtitle(filters = {}, count = 0) {
-  const parts = [];
-  if (filters.ids?.length) parts.push(`${filters.ids.length} selected`);
-  if (filters.code) parts.push(`Code: ${filters.code}`);
-  if (filters.name) parts.push(`Name: ${filters.name}`);
-  if (filters.role) parts.push(`Role: ${filters.role}`);
-  if (filters.branchId) parts.push(`Branch: ${filters.branchId}`);
-  if (filters.status) parts.push(`Status: ${filters.status}`);
-  if (filters.search) parts.push(`Search: ${filters.search}`);
-  parts.push(`${count} record(s)`);
-  return parts.join(' · ');
+  return buildExportSubtitle(filters, count);
 }
 
-function buildBranchWhere(search, statusFilter) {
+function parseBranchFilters(query = {}) {
+  return {
+    code: String(query.code || '').trim(),
+    name: String(query.name || '').trim(),
+    city: String(query.city || '').trim(),
+    status: String(query.status || '').trim(),
+    search: String(query.search || query.q || '').trim(),
+    ids: parseIdList(query.ids),
+  };
+}
+
+function buildBranchWhere(filters = {}) {
+  const {
+    code = '',
+    name = '',
+    city = '',
+    status = '',
+    search = '',
+    ids = [],
+  } = filters;
+
   const clauses = [];
   const params = [];
+
+  if (ids.length) {
+    clauses.push(`id IN (${ids.map(() => '?').join(', ')})`);
+    params.push(...ids);
+  }
+
+  if (code) {
+    clauses.push('code LIKE ?');
+    params.push(`%${code}%`);
+  }
+
+  if (name) {
+    clauses.push('name LIKE ?');
+    params.push(`%${name}%`);
+  }
+
+  if (city) {
+    clauses.push('city LIKE ?');
+    params.push(`%${city}%`);
+  }
+
+  if (status) {
+    clauses.push('status = ?');
+    params.push(status);
+  }
 
   if (search) {
     clauses.push('(code LIKE ? OR name LIKE ? OR city LIKE ? OR manager_name LIKE ?)');
@@ -187,28 +238,58 @@ function buildBranchWhere(search, statusFilter) {
     params.push(term, term, term, term);
   }
 
-  if (statusFilter) {
-    clauses.push('status = ?');
-    params.push(statusFilter);
-  }
-
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   return { where, params };
 }
 
-function buildProductWhere(search, statusFilter, employeeId = '', branchId = '', category = '', brandId = '') {
+function parseProductFilters(query = {}) {
+  return {
+    sku: String(query.sku || '').trim(),
+    name: String(query.name || '').trim(),
+    category: String(query.category || '').trim(),
+    brandId: String(query.brandId || query.brand_id || '').trim(),
+    branchId: String(query.branchId || query.branch_id || '').trim(),
+    employeeId: String(query.employeeId || '').trim(),
+    status: String(query.status || '').trim(),
+    search: String(query.search || query.q || '').trim(),
+    ids: parseIdList(query.ids),
+  };
+}
+
+function buildProductWhere(filters = {}) {
+  const {
+    sku = '',
+    name = '',
+    category = '',
+    brandId = '',
+    branchId = '',
+    employeeId = '',
+    status = '',
+    search = '',
+    ids = [],
+  } = filters;
+
   const clauses = [];
   const params = [];
 
-  if (search) {
-    clauses.push('(p.sku LIKE ? OR p.name LIKE ? OR p.category LIKE ? OR br.name LIKE ? OR br.code LIKE ? OR e.first_name LIKE ? OR e.last_name LIKE ? OR b.name LIKE ? OR b.code LIKE ?)');
-    const term = `%${search}%`;
-    params.push(term, term, term, term, term, term, term, term, term);
+  if (ids.length) {
+    clauses.push(`p.id IN (${ids.map(() => '?').join(', ')})`);
+    params.push(...ids);
+  }
+
+  if (sku) {
+    clauses.push('p.sku LIKE ?');
+    params.push(`%${sku}%`);
+  }
+
+  if (name) {
+    clauses.push('p.name LIKE ?');
+    params.push(`%${name}%`);
   }
 
   if (category) {
-    clauses.push('p.category = ?');
-    params.push(category);
+    clauses.push('p.category LIKE ?');
+    params.push(`%${category}%`);
   }
 
   if (brandId) {
@@ -226,26 +307,70 @@ function buildProductWhere(search, statusFilter, employeeId = '', branchId = '',
     params.push(branchId, branchId);
   }
 
-  if (statusFilter) {
-    if (statusFilter === 'low_stock') {
+  if (status) {
+    if (status === 'low_stock') {
       clauses.push('p.quantity > 0 AND p.quantity <= p.reorder_level AND p.status != ?');
       params.push('discontinued');
-    } else if (statusFilter === 'out_of_stock') {
+    } else if (status === 'out_of_stock') {
       clauses.push('(p.quantity = 0 AND p.status != ?)');
       params.push('discontinued');
     } else {
       clauses.push('p.status = ?');
-      params.push(statusFilter);
+      params.push(status);
     }
+  }
+
+  if (search) {
+    clauses.push('(p.sku LIKE ? OR p.name LIKE ? OR p.category LIKE ? OR br.name LIKE ? OR br.code LIKE ? OR e.first_name LIKE ? OR e.last_name LIKE ? OR b.name LIKE ? OR b.code LIKE ?)');
+    const term = `%${search}%`;
+    params.push(term, term, term, term, term, term, term, term, term);
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   return { where, params };
 }
 
-function buildBrandWhere(search, statusFilter) {
+function parseBrandFilters(query = {}) {
+  return {
+    code: String(query.code || '').trim(),
+    name: String(query.name || '').trim(),
+    status: String(query.status || '').trim(),
+    search: String(query.search || query.q || '').trim(),
+    ids: parseIdList(query.ids),
+  };
+}
+
+function buildBrandWhere(filters = {}) {
+  const {
+    code = '',
+    name = '',
+    status = '',
+    search = '',
+    ids = [],
+  } = filters;
+
   const clauses = [];
   const params = [];
+
+  if (ids.length) {
+    clauses.push(`id IN (${ids.map(() => '?').join(', ')})`);
+    params.push(...ids);
+  }
+
+  if (code) {
+    clauses.push('code LIKE ?');
+    params.push(`%${code}%`);
+  }
+
+  if (name) {
+    clauses.push('name LIKE ?');
+    params.push(`%${name}%`);
+  }
+
+  if (status) {
+    clauses.push('status = ?');
+    params.push(status);
+  }
 
   if (search) {
     clauses.push('(code LIKE ? OR name LIKE ?)');
@@ -253,28 +378,56 @@ function buildBrandWhere(search, statusFilter) {
     params.push(term, term);
   }
 
-  if (statusFilter) {
-    clauses.push('status = ?');
-    params.push(statusFilter);
-  }
-
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   return { where, params };
 }
 
-function buildProductTypeWhere(search, statusFilter) {
+function parseProductTypeFilters(query = {}) {
+  return {
+    code: String(query.code || '').trim(),
+    name: String(query.name || '').trim(),
+    status: String(query.status || '').trim(),
+    search: String(query.search || query.q || '').trim(),
+    ids: parseIdList(query.ids),
+  };
+}
+
+function buildProductTypeWhere(filters = {}) {
+  const {
+    code = '',
+    name = '',
+    status = '',
+    search = '',
+    ids = [],
+  } = filters;
+
   const clauses = [];
   const params = [];
+
+  if (ids.length) {
+    clauses.push(`id IN (${ids.map(() => '?').join(', ')})`);
+    params.push(...ids);
+  }
+
+  if (code) {
+    clauses.push('code LIKE ?');
+    params.push(`%${code}%`);
+  }
+
+  if (name) {
+    clauses.push('name LIKE ?');
+    params.push(`%${name}%`);
+  }
+
+  if (status) {
+    clauses.push('status = ?');
+    params.push(status);
+  }
 
   if (search) {
     clauses.push('(code LIKE ? OR name LIKE ? OR description LIKE ?)');
     const term = `%${search}%`;
     params.push(term, term, term);
-  }
-
-  if (statusFilter) {
-    clauses.push('status = ?');
-    params.push(statusFilter);
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
@@ -486,15 +639,50 @@ export function createAdminRouter() {
     }
   });
 
+  router.get('/items/export', async (req, res) => {
+    try {
+      const format = String(req.query.format || 'csv').trim().toLowerCase();
+      const filters = parseProductFilters(req.query);
+      const { where, params } = buildProductWhere(filters);
+
+      const [rows] = await pool.query(
+        `SELECT ${PRODUCT_SELECT_FIELDS}
+         FROM products p ${PRODUCT_JOIN_SQL}
+         ${where}
+         ORDER BY p.updated_at DESC, p.name ASC
+         LIMIT 10000`,
+        params,
+      );
+
+      const data = rows.map(mapProductRow);
+      const title = filters.status === 'low_stock'
+        ? 'Low Stock Products'
+        : filters.status === 'out_of_stock'
+          ? 'Out of Stock Products'
+          : 'Products';
+      const subtitle = buildExportSubtitle(filters, data.length);
+      const filename = buildExportFilename('products', format === 'pdf' ? 'pdf' : 'csv', { suffix: filters.status || '' });
+
+      return sendTableExport(res, {
+        format,
+        columns: PRODUCT_EXPORT_COLUMNS,
+        rows: data,
+        normalizeRow: normalizeProductExportRow,
+        title,
+        subtitle,
+        filename,
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
   router.get('/items', async (req, res) => {
     try {
       const q = parseTableQuery(req.query);
-      const statusFilter = String(req.query.status || '').trim();
-      const employeeId = String(req.query.employeeId || '').trim();
-      const branchId = String(req.query.branchId || '').trim();
-      const category = String(req.query.category || '').trim();
-      const brandId = String(req.query.brandId || '').trim();
-      const { where, params } = buildProductWhere(q.search, statusFilter, employeeId, branchId, category, brandId);
+      const filters = parseProductFilters(req.query);
+      if (!filters.search && q.search) filters.search = q.search;
+      const { where, params } = buildProductWhere(filters);
 
       const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM products p ${PRODUCT_JOIN_SQL} ${where}`,
@@ -517,6 +705,46 @@ export function createAdminRouter() {
       }
 
       return res.json({ ok: true, data });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/items/bulk-delete', async (req, res) => {
+    try {
+      const ids = parseIdList(req.body?.ids);
+      if (!ids.length) {
+        return res.status(400).json({ ok: false, message: 'Select at least one product to delete.' });
+      }
+
+      const placeholders = ids.map(() => '?').join(', ');
+      const [result] = await pool.query(`DELETE FROM products WHERE id IN (${placeholders})`, ids);
+      res.json({ ok: true, deleted: Number(result?.affectedRows || 0) });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/items/bulk-status', async (req, res) => {
+    try {
+      const ids = parseIdList(req.body?.ids);
+      const status = String(req.body?.status || '').trim().toLowerCase();
+
+      if (!ids.length) {
+        return res.status(400).json({ ok: false, message: 'Select at least one product to update.' });
+      }
+      if (!['discontinued', 'available'].includes(status)) {
+        return res.status(400).json({ ok: false, message: 'Status must be discontinued or available.' });
+      }
+
+      const placeholders = ids.map(() => '?').join(', ');
+      const nextStatus = status === 'discontinued' ? 'discontinued' : '';
+      const [result] = await pool.query(
+        `UPDATE products SET status = ? WHERE id IN (${placeholders})`,
+        [nextStatus, ...ids],
+      );
+
+      res.json({ ok: true, updated: Number(result?.affectedRows || 0), status });
     } catch (error) {
       res.status(500).json({ ok: false, message: error.message });
     }
@@ -715,11 +943,57 @@ export function createAdminRouter() {
     }
   });
 
+  router.get('/branches/export', async (req, res) => {
+    try {
+      const format = String(req.query.format || 'csv').trim().toLowerCase();
+      const filters = parseBranchFilters(req.query);
+      const { where, params } = buildBranchWhere(filters);
+
+      const [rows] = await pool.query(
+        `SELECT
+           id, code, name, city, address, phone, manager_name, status, updated_at,
+           (
+             SELECT COUNT(*)
+             FROM products p
+             LEFT JOIN employees e ON e.id = p.employee_id
+             WHERE p.branch_id = branches.id OR e.branch_id = branches.id
+           ) AS assets_count
+         FROM branches
+         ${where}
+         ORDER BY name ASC, code ASC
+         LIMIT 10000`,
+        params,
+      );
+
+      const data = rows.map(mapBranchRow);
+      const title = filters.status === 'inactive'
+        ? 'Inactive Branches'
+        : filters.status === 'active'
+          ? 'Active Branches'
+          : 'Branches';
+      const subtitle = buildExportSubtitle(filters, data.length);
+      const filename = buildExportFilename('branches', format === 'pdf' ? 'pdf' : 'csv', { suffix: filters.status || '' });
+
+      return sendTableExport(res, {
+        format,
+        columns: BRANCH_EXPORT_COLUMNS,
+        rows: data,
+        normalizeRow: normalizeBranchExportRow,
+        title,
+        subtitle,
+        filename,
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
   router.get('/branches', async (req, res) => {
     try {
       const q = parseTableQuery(req.query);
-      const statusFilter = String(req.query.status || '').trim();
-      const { where, params } = buildBranchWhere(q.search, statusFilter);
+      const filters = parseBranchFilters(req.query);
+      if (!filters.search && q.search) filters.search = q.search;
+      const { where, params } = buildBranchWhere(filters);
 
       const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM branches ${where}`,
@@ -749,6 +1023,72 @@ export function createAdminRouter() {
       }
 
       return res.json({ ok: true, data });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/branches/bulk-delete', async (req, res) => {
+    try {
+      const ids = parseIdList(req.body?.ids);
+      if (!ids.length) {
+        return res.status(400).json({ ok: false, message: 'Select at least one branch to delete.' });
+      }
+
+      let deleted = 0;
+      let skipped = 0;
+
+      for (const id of ids) {
+        const [[existing]] = await pool.query('SELECT id FROM branches WHERE id = ?', [id]);
+        if (!existing) continue;
+
+        const [[empCount]] = await pool.query(
+          'SELECT COUNT(*) AS count FROM employees WHERE branch_id = ?',
+          [id],
+        );
+        if (Number(empCount?.count || 0) > 0) {
+          skipped += 1;
+          continue;
+        }
+
+        await pool.query('DELETE FROM branches WHERE id = ?', [id]);
+        deleted += 1;
+      }
+
+      if (!deleted && skipped > 0) {
+        return res.status(409).json({
+          ok: false,
+          message: 'Selected branches still have employees assigned and cannot be deleted.',
+          deleted,
+          skipped,
+        });
+      }
+
+      res.json({ ok: true, deleted, skipped });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/branches/bulk-status', async (req, res) => {
+    try {
+      const ids = parseIdList(req.body?.ids);
+      const status = String(req.body?.status || '').trim().toLowerCase();
+
+      if (!ids.length) {
+        return res.status(400).json({ ok: false, message: 'Select at least one branch to update.' });
+      }
+      if (!['active', 'inactive'].includes(status)) {
+        return res.status(400).json({ ok: false, message: 'Status must be active or inactive.' });
+      }
+
+      const placeholders = ids.map(() => '?').join(', ');
+      const [result] = await pool.query(
+        `UPDATE branches SET status = ? WHERE id IN (${placeholders})`,
+        [status, ...ids],
+      );
+
+      res.json({ ok: true, updated: Number(result?.affectedRows || 0), status });
     } catch (error) {
       res.status(500).json({ ok: false, message: error.message });
     }
@@ -904,11 +1244,46 @@ export function createAdminRouter() {
     }
   });
 
+  router.get('/brands/export', async (req, res) => {
+    try {
+      const format = String(req.query.format || 'csv').trim().toLowerCase();
+      const filters = parseBrandFilters(req.query);
+      const { where, params } = buildBrandWhere(filters);
+
+      const [rows] = await pool.query(
+        `SELECT id, code, name, status, updated_at
+         FROM brands
+         ${where}
+         ORDER BY name ASC, code ASC
+         LIMIT 10000`,
+        params,
+      );
+
+      const data = rows.map(mapBrandRow);
+      const title = 'Brands';
+      const subtitle = buildExportSubtitle(filters, data.length);
+      const filename = buildExportFilename('brands', format === 'pdf' ? 'pdf' : 'csv', { suffix: filters.status || '' });
+
+      return sendTableExport(res, {
+        format,
+        columns: BRAND_EXPORT_COLUMNS,
+        rows: data,
+        normalizeRow: normalizeBrandExportRow,
+        title,
+        subtitle,
+        filename,
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
   router.get('/brands', async (req, res) => {
     try {
       const q = parseTableQuery(req.query);
-      const statusFilter = String(req.query.status || '').trim();
-      const { where, params } = buildBrandWhere(q.search, statusFilter);
+      const filters = parseBrandFilters(req.query);
+      if (!filters.search && q.search) filters.search = q.search;
+      const { where, params } = buildBrandWhere(filters);
 
       const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM brands ${where}`,
@@ -931,6 +1306,72 @@ export function createAdminRouter() {
       }
 
       return res.json({ ok: true, data });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/brands/bulk-delete', async (req, res) => {
+    try {
+      const ids = parseIdList(req.body?.ids);
+      if (!ids.length) {
+        return res.status(400).json({ ok: false, message: 'Select at least one brand to delete.' });
+      }
+
+      let deleted = 0;
+      let skipped = 0;
+
+      for (const id of ids) {
+        const [[existing]] = await pool.query('SELECT id FROM brands WHERE id = ?', [id]);
+        if (!existing) continue;
+
+        const [[productCount]] = await pool.query(
+          'SELECT COUNT(*) AS total FROM products WHERE brand_id = ?',
+          [id],
+        );
+        if (Number(productCount?.total || 0) > 0) {
+          skipped += 1;
+          continue;
+        }
+
+        await pool.query('DELETE FROM brands WHERE id = ?', [id]);
+        deleted += 1;
+      }
+
+      if (!deleted && skipped > 0) {
+        return res.status(409).json({
+          ok: false,
+          message: 'Selected brands are assigned to inventory items and cannot be deleted.',
+          deleted,
+          skipped,
+        });
+      }
+
+      res.json({ ok: true, deleted, skipped });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/brands/bulk-status', async (req, res) => {
+    try {
+      const ids = parseIdList(req.body?.ids);
+      const status = String(req.body?.status || '').trim().toLowerCase();
+
+      if (!ids.length) {
+        return res.status(400).json({ ok: false, message: 'Select at least one brand to update.' });
+      }
+      if (!['active', 'inactive'].includes(status)) {
+        return res.status(400).json({ ok: false, message: 'Status must be active or inactive.' });
+      }
+
+      const placeholders = ids.map(() => '?').join(', ');
+      const [result] = await pool.query(
+        `UPDATE brands SET status = ? WHERE id IN (${placeholders})`,
+        [status, ...ids],
+      );
+
+      res.json({ ok: true, updated: Number(result?.affectedRows || 0), status });
     } catch (error) {
       res.status(500).json({ ok: false, message: error.message });
     }
@@ -1071,11 +1512,46 @@ export function createAdminRouter() {
     }
   });
 
+  router.get('/product-types/export', async (req, res) => {
+    try {
+      const format = String(req.query.format || 'csv').trim().toLowerCase();
+      const filters = parseProductTypeFilters(req.query);
+      const { where, params } = buildProductTypeWhere(filters);
+
+      const [rows] = await pool.query(
+        `SELECT id, code, name, description, status, updated_at
+         FROM product_types
+         ${where}
+         ORDER BY name ASC, code ASC
+         LIMIT 10000`,
+        params,
+      );
+
+      const data = rows.map(mapProductTypeRow);
+      const title = 'Product Types';
+      const subtitle = buildExportSubtitle(filters, data.length);
+      const filename = buildExportFilename('product-types', format === 'pdf' ? 'pdf' : 'csv', { suffix: filters.status || '' });
+
+      return sendTableExport(res, {
+        format,
+        columns: PRODUCT_TYPE_EXPORT_COLUMNS,
+        rows: data,
+        normalizeRow: normalizeProductTypeExportRow,
+        title,
+        subtitle,
+        filename,
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
   router.get('/product-types', async (req, res) => {
     try {
       const q = parseTableQuery(req.query);
-      const statusFilter = String(req.query.status || '').trim();
-      const { where, params } = buildProductTypeWhere(q.search, statusFilter);
+      const filters = parseProductTypeFilters(req.query);
+      if (!filters.search && q.search) filters.search = q.search;
+      const { where, params } = buildProductTypeWhere(filters);
 
       const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM product_types ${where}`,
@@ -1098,6 +1574,75 @@ export function createAdminRouter() {
       }
 
       return res.json({ ok: true, data });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/product-types/bulk-delete', async (req, res) => {
+    try {
+      const ids = parseIdList(req.body?.ids);
+      if (!ids.length) {
+        return res.status(400).json({ ok: false, message: 'Select at least one product type to delete.' });
+      }
+
+      let deleted = 0;
+      let skipped = 0;
+
+      for (const id of ids) {
+        const [[existing]] = await pool.query(
+          'SELECT id, name FROM product_types WHERE id = ?',
+          [id],
+        );
+        if (!existing) continue;
+
+        const [[productCount]] = await pool.query(
+          'SELECT COUNT(*) AS total FROM products WHERE category = ?',
+          [String(existing.name || '').trim()],
+        );
+        if (Number(productCount?.total || 0) > 0) {
+          skipped += 1;
+          continue;
+        }
+
+        await pool.query('DELETE FROM product_types WHERE id = ?', [id]);
+        deleted += 1;
+      }
+
+      if (!deleted && skipped > 0) {
+        return res.status(409).json({
+          ok: false,
+          message: 'Selected product types are assigned to inventory items and cannot be deleted.',
+          deleted,
+          skipped,
+        });
+      }
+
+      res.json({ ok: true, deleted, skipped });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/product-types/bulk-status', async (req, res) => {
+    try {
+      const ids = parseIdList(req.body?.ids);
+      const status = String(req.body?.status || '').trim().toLowerCase();
+
+      if (!ids.length) {
+        return res.status(400).json({ ok: false, message: 'Select at least one product type to update.' });
+      }
+      if (!['active', 'inactive'].includes(status)) {
+        return res.status(400).json({ ok: false, message: 'Status must be active or inactive.' });
+      }
+
+      const placeholders = ids.map(() => '?').join(', ');
+      const [result] = await pool.query(
+        `UPDATE product_types SET status = ? WHERE id IN (${placeholders})`,
+        [status, ...ids],
+      );
+
+      res.json({ ok: true, updated: Number(result?.affectedRows || 0), status });
     } catch (error) {
       res.status(500).json({ ok: false, message: error.message });
     }
@@ -1354,7 +1899,7 @@ export function createAdminRouter() {
 
   router.post('/employees/bulk-delete', async (req, res) => {
     try {
-      const ids = parseEmployeeIdList(req.body?.ids);
+      const ids = parseIdList(req.body?.ids);
       if (!ids.length) {
         return res.status(400).json({ ok: false, message: 'Select at least one employee to delete.' });
       }
@@ -1381,7 +1926,7 @@ export function createAdminRouter() {
 
   router.post('/employees/bulk-status', async (req, res) => {
     try {
-      const ids = parseEmployeeIdList(req.body?.ids);
+      const ids = parseIdList(req.body?.ids);
       const status = String(req.body?.status || '').trim().toLowerCase();
 
       if (!ids.length) {
@@ -1606,6 +2151,64 @@ export function createAdminRouter() {
     try {
       const [[row]] = await pool.query('SELECT COUNT(*) AS count FROM users');
       res.json({ ok: true, count: Number(row?.count || 0) });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.get('/users/export', async (req, res) => {
+    try {
+      const format = String(req.query.format || 'csv').trim().toLowerCase();
+      const filters = {
+        name: String(req.query.name || '').trim(),
+        email: String(req.query.email || '').trim(),
+        role: String(req.query.role || '').trim(),
+        ids: parseIdList(req.query.ids),
+      };
+
+      const clauses = [];
+      const params = [];
+
+      if (filters.ids.length) {
+        clauses.push(`id IN (${filters.ids.map(() => '?').join(', ')})`);
+        params.push(...filters.ids);
+      }
+      if (filters.name) {
+        clauses.push('name LIKE ?');
+        params.push(`%${filters.name}%`);
+      }
+      if (filters.email) {
+        clauses.push('email LIKE ?');
+        params.push(`%${filters.email}%`);
+      }
+      if (filters.role) {
+        clauses.push('role LIKE ?');
+        params.push(`%${filters.role}%`);
+      }
+
+      const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+      const [rows] = await pool.query(
+        `SELECT id, name, email, role, email_verified, created_at
+         FROM users
+         ${where}
+         ORDER BY created_at DESC
+         LIMIT 10000`,
+        params,
+      );
+
+      const title = 'Users';
+      const subtitle = buildExportSubtitle(filters, rows.length);
+      const filename = buildExportFilename('users', format === 'pdf' ? 'pdf' : 'csv');
+
+      return sendTableExport(res, {
+        format,
+        columns: USER_EXPORT_COLUMNS,
+        rows,
+        normalizeRow: normalizeUserExportRow,
+        title,
+        subtitle,
+        filename,
+      });
     } catch (error) {
       res.status(500).json({ ok: false, message: error.message });
     }

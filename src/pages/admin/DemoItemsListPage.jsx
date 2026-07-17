@@ -1,80 +1,121 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PlusCircle } from 'lucide-react';
-import { PageHeader, DataTable, Card, ListSearchFilters, emptySearchFilters, ConfirmDialog } from '../../components/ui';
 import {
-  productStatusHtml,
-  textHtml,
-  qtyHtml,
-  dateHtml,
-  currencyHtml,
+  PageHeader,
+  DataTable,
+  Card,
+  ConfirmDialog,
+  DynamicListFilters,
+  TableActionsMenu,
+} from '../../components/ui';
+import {
   branchCodeHtml,
-  employeeCodeHtml,
   catalogRowActionsHtml,
+  currencyHtml,
+  dateHtml,
+  employeeCodeHtml,
+  productStatusHtml,
+  qtyHtml,
+  textHtml,
 } from '../../utils/datatableHelpers';
 import { useAuth } from '../../context/AuthContext';
-import { useDeleteRecord } from '../../hooks/useDeleteRecord';
+import { useAdminTablePage } from '../../hooks/useAdminTablePage';
+import {
+  PRODUCT_FILTER_FIELDS,
+  buildBranchOptions,
+  buildBrandOptions,
+  buildInitialFilters,
+  buildListExportParams,
+} from '../../config/adminListPageConfig';
+import { getApiBase } from '../../utils/apiBase';
+import { getAdminAuthHeaders } from '../../utils/authHeaders';
+import { useToast } from '../../context/ToastContext';
+
+const API_BASE = getApiBase();
 
 export default function DemoItemsListPage() {
+  const toast = useToast();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('items.manage');
+  const canView = hasPermission('items.view');
   const [searchParams] = useSearchParams();
-  const statusFilter = searchParams.get('status') || '';
-  const tableRef = useRef(null);
-  const [filters, setFilters] = useState(emptySearchFilters);
-  const [appliedFilters, setAppliedFilters] = useState(emptySearchFilters);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const statusFromUrl = searchParams.get('status') || '';
+  const [branches, setBranches] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [filters, setFilters] = useState(() => buildInitialFilters(PRODUCT_FILTER_FIELDS, { status: statusFromUrl }));
+  const [appliedFilters, setAppliedFilters] = useState(() => buildInitialFilters(PRODUCT_FILTER_FIELDS, { status: statusFromUrl }));
 
-  const pageTitle = useMemo(() => {
-    if (statusFilter === 'low_stock') return 'Low Stock Products';
-    if (statusFilter === 'out_of_stock') return 'Out of Stock Products';
-    return 'Products';
-  }, [statusFilter]);
-
-  const reloadTable = useCallback(() => {
-    tableRef.current?.reload(false);
-  }, []);
-
-  const deleteRecord = useDeleteRecord('/admin/items', {
-    successMessage: 'Product deleted.',
+  const {
+    tableRef,
+    selectedCount,
+    clearSelection,
+    deleting,
+    updatingStatus,
+    busy,
+    deleteTarget,
+    statusTarget,
+    setDeleteTarget,
+    setStatusTarget,
+    handleDeleteRequest,
+    handleDeleteConfirm,
+    handleStatusConfirm,
+    buildTableActions,
+    selectable,
+  } = useAdminTablePage({
+    canView,
+    canManage,
+    exportPath: '/admin/items/export',
+    exportFilename: 'products',
+    buildExportParams: (nextFilters, selectedIds) => buildListExportParams(nextFilters, selectedIds),
+    bulkDeletePath: '/admin/items/bulk-delete',
+    bulkStatusPath: '/admin/items/bulk-status',
+    singleDeletePath: '/admin/items',
+    entityLabel: 'product',
+    entityLabelPlural: 'products',
+    singleDeleteSuccessMessage: 'Product deleted.',
   });
 
-  const handleDeleteRequest = useCallback((id, label) => {
-    setDeleteTarget({ id, label: label || 'this product' });
-  }, []);
+  useEffect(() => {
+    const next = buildInitialFilters(PRODUCT_FILTER_FIELDS, { status: statusFromUrl });
+    setFilters(next);
+    setAppliedFilters(next);
+    clearSelection();
+  }, [clearSelection, statusFromUrl]);
 
-  const handleDeleteConfirm = useCallback(async () => {
-    if (!deleteTarget?.id) return;
-    setDeleting(true);
-    try {
-      await deleteRecord(deleteTarget.id);
-      setDeleteTarget(null);
-      reloadTable();
-    } catch {
-      // Toast handled in hook; keep dialog open on failure.
-    } finally {
-      setDeleting(false);
-    }
-  }, [deleteRecord, deleteTarget, reloadTable]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = getAdminAuthHeaders();
+        const [branchRes, brandRes] = await Promise.all([
+          fetch(`${API_BASE}/admin/branches?limit=100`, { headers, cache: 'no-store' }),
+          fetch(`${API_BASE}/admin/brands?limit=100`, { headers, cache: 'no-store' }),
+        ]);
+        const branchJson = await branchRes.json().catch(() => ({}));
+        const brandJson = await brandRes.json().catch(() => ({}));
+        if (!cancelled) {
+          if (branchRes.ok && branchJson?.ok) setBranches(branchJson.data || []);
+          if (brandRes.ok && brandJson?.ok) setBrands(brandJson.data || []);
+        }
+      } catch {
+        if (!cancelled) toast('Unable to load filter options.', { type: 'error' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [toast]);
+
+  const pageTitle = useMemo(() => {
+    if (appliedFilters.status === 'low_stock') return 'Low Stock Products';
+    if (appliedFilters.status === 'out_of_stock') return 'Out of Stock Products';
+    return 'Products';
+  }, [appliedFilters.status]);
 
   const columns = useMemo(() => [
-    {
-      key: 'sku',
-      label: 'S/N',
-      render: (_, row) => textHtml(row.sku),
-    },
-    {
-      key: 'name',
-      label: 'Name',
-      render: (_, row) => textHtml(row.name),
-    },
+    { key: 'sku', label: 'S/N', render: (_, row) => textHtml(row.sku) },
+    { key: 'name', label: 'Name', render: (_, row) => textHtml(row.name) },
     { key: 'category', label: 'Type' },
-    {
-      key: 'brandName',
-      label: 'Brand',
-      render: (_, row) => textHtml(row.brandName),
-    },
+    { key: 'brandName', label: 'Brand', render: (_, row) => textHtml(row.brandName) },
     {
       key: 'employeeName',
       label: 'Assigned to',
@@ -119,10 +160,24 @@ export default function DemoItemsListPage() {
     },
   ], [canManage]);
 
-  const ajaxParams = useMemo(() => ({
-    search: appliedFilters.search,
-    status: statusFilter,
-  }), [appliedFilters.search, statusFilter]);
+  const ajaxParams = useMemo(() => ({ ...appliedFilters }), [appliedFilters]);
+  const tableKey = useMemo(
+    () => `products-${Object.values(appliedFilters).join('-')}-${canManage ? 'manage' : 'view'}`,
+    [appliedFilters, canManage],
+  );
+
+  const filterOptions = useMemo(() => ({
+    branches: buildBranchOptions(branches),
+    brands: buildBrandOptions(brands),
+  }), [branches, brands]);
+
+  const tableActions = useMemo(() => buildTableActions({
+    appliedFilters,
+    statusActions: [
+      { key: 'status-available', label: 'Mark available', status: 'available' },
+      { key: 'status-discontinued', label: 'Mark discontinued', status: 'discontinued' },
+    ],
+  }), [appliedFilters, buildTableActions]);
 
   return (
     <div>
@@ -145,23 +200,29 @@ export default function DemoItemsListPage() {
         ) : null}
       />
 
-      <ListSearchFilters
+      <DynamicListFilters
+        fields={PRODUCT_FILTER_FIELDS}
         values={filters}
         onChange={setFilters}
+        optionsMap={filterOptions}
         onApply={(next) => {
           setAppliedFilters(next);
-          reloadTable();
+          clearSelection();
         }}
         onClear={() => {
-          const cleared = emptySearchFilters();
+          const cleared = buildInitialFilters(PRODUCT_FILTER_FIELDS);
           setFilters(cleared);
           setAppliedFilters(cleared);
-          reloadTable();
+          clearSelection();
         }}
-        placeholder="Search S/N, name, category, employee, or branch..."
       />
 
-      <Card noPadding>
+      <Card
+        noPadding
+        actions={(canView || canManage) ? (
+          <TableActionsMenu selectedCount={selectedCount} disabled={busy} actions={tableActions} />
+        ) : null}
+      >
         <DataTable
           ref={tableRef}
           columns={columns}
@@ -172,7 +233,8 @@ export default function DemoItemsListPage() {
           emptyTitle="No products found"
           getRowHref={(row) => `/admin/items/${row.id}`}
           onRowDelete={canManage ? handleDeleteRequest : undefined}
-          tableKey={`products-${statusFilter}-${appliedFilters.search}-${canManage ? 'manage' : 'view'}`}
+          selectable={selectable}
+          tableKey={tableKey}
         />
       </Card>
 
@@ -180,10 +242,22 @@ export default function DemoItemsListPage() {
         isOpen={Boolean(deleteTarget)}
         onClose={() => !deleting && setDeleteTarget(null)}
         onConfirm={handleDeleteConfirm}
-        title="Delete product"
-        message={`Delete ${deleteTarget?.label || 'this product'}? This cannot be undone.`}
+        title={deleteTarget?.mode === 'bulk' ? 'Delete selected products' : 'Delete product'}
+        message={deleteTarget?.mode === 'bulk'
+          ? `Delete ${deleteTarget.count} selected product(s)? This cannot be undone.`
+          : `Delete ${deleteTarget?.label || 'this product'}? This cannot be undone.`}
         confirmLabel="Delete"
         loading={deleting}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(statusTarget)}
+        onClose={() => !updatingStatus && setStatusTarget(null)}
+        onConfirm={handleStatusConfirm}
+        title="Change product status"
+        message={`Update ${statusTarget?.count || 0} selected product(s) to ${statusTarget?.label || statusTarget?.status || ''}?`}
+        confirmLabel="Update status"
+        loading={updatingStatus}
       />
     </div>
   );

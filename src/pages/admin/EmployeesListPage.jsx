@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PlusCircle } from 'lucide-react';
 import {
@@ -6,9 +6,9 @@ import {
   DataTable,
   Card,
   ConfirmDialog,
+  DynamicListFilters,
   TableActionsMenu,
 } from '../../components/ui';
-import EmployeeListFilters, { emptyEmployeeFilters } from '../../components/admin/EmployeeListFilters';
 import {
   branchCodeHtml,
   catalogRowActionsHtml,
@@ -19,19 +19,18 @@ import {
   textHtml,
 } from '../../utils/datatableHelpers';
 import { useAuth } from '../../context/AuthContext';
-import { useDeleteRecord } from '../../hooks/useDeleteRecord';
-import { useToast } from '../../context/ToastContext';
-import { downloadAdminExport } from '../../utils/exportDownload';
+import { useAdminTablePage } from '../../hooks/useAdminTablePage';
+import {
+  EMPLOYEE_FILTER_FIELDS,
+  buildBranchOptions,
+  buildInitialFilters,
+  buildListExportParams,
+} from '../../config/adminListPageConfig';
 import { getApiBase } from '../../utils/apiBase';
 import { getAdminAuthHeaders } from '../../utils/authHeaders';
+import { useToast } from '../../context/ToastContext';
 
 const API_BASE = getApiBase();
-
-function buildInitialFilters(statusFromUrl = '') {
-  const base = emptyEmployeeFilters();
-  if (statusFromUrl) base.status = statusFromUrl;
-  return base;
-}
 
 export default function EmployeesListPage() {
   const toast = useToast();
@@ -40,25 +39,46 @@ export default function EmployeesListPage() {
   const canView = hasPermission('employees.view');
   const [searchParams] = useSearchParams();
   const statusFromUrl = searchParams.get('status') || '';
-  const tableRef = useRef(null);
   const [branches, setBranches] = useState([]);
-  const [filters, setFilters] = useState(() => buildInitialFilters(statusFromUrl));
-  const [appliedFilters, setAppliedFilters] = useState(() => buildInitialFilters(statusFromUrl));
-  const [selectedIds, setSelectedIds] = useState(() => new Set());
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [statusTarget, setStatusTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [exportingFormat, setExportingFormat] = useState('');
-  const selectedCount = selectedIds.size;
+  const [filters, setFilters] = useState(() => buildInitialFilters(EMPLOYEE_FILTER_FIELDS, { status: statusFromUrl }));
+  const [appliedFilters, setAppliedFilters] = useState(() => buildInitialFilters(EMPLOYEE_FILTER_FIELDS, { status: statusFromUrl }));
+
+  const {
+    tableRef,
+    selectedCount,
+    clearSelection,
+    deleting,
+    updatingStatus,
+    busy,
+    deleteTarget,
+    statusTarget,
+    setDeleteTarget,
+    setStatusTarget,
+    handleDeleteRequest,
+    handleDeleteConfirm,
+    handleStatusConfirm,
+    buildTableActions,
+    selectable,
+  } = useAdminTablePage({
+    canView,
+    canManage,
+    exportPath: '/admin/employees/export',
+    exportFilename: 'employees',
+    buildExportParams: (nextFilters, selectedIds) => buildListExportParams(nextFilters, selectedIds),
+    bulkDeletePath: '/admin/employees/bulk-delete',
+    bulkStatusPath: '/admin/employees/bulk-status',
+    singleDeletePath: '/admin/employees',
+    entityLabel: 'employee',
+    entityLabelPlural: 'employees',
+    singleDeleteSuccessMessage: 'Employee deleted.',
+  });
 
   useEffect(() => {
-    const next = buildInitialFilters(statusFromUrl);
+    const next = buildInitialFilters(EMPLOYEE_FILTER_FIELDS, { status: statusFromUrl });
     setFilters(next);
     setAppliedFilters(next);
-    setSelectedIds(new Set());
-    tableRef.current?.clearSelection?.();
-  }, [statusFromUrl]);
+    clearSelection();
+  }, [clearSelection, statusFromUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,198 +105,9 @@ export default function EmployeesListPage() {
     return 'Employees';
   }, [appliedFilters.status]);
 
-  const reloadTable = useCallback(() => {
-    tableRef.current?.reload(false);
-  }, []);
-
-  const clearSelection = useCallback(() => {
-    setSelectedIds(new Set());
-    tableRef.current?.clearSelection?.();
-  }, []);
-
-  const handleSelectionChange = useCallback((next) => {
-    setSelectedIds(next instanceof Set ? new Set(next) : new Set(next || []));
-  }, []);
-
-  const deleteRecord = useDeleteRecord('/admin/employees', {
-    successMessage: 'Employee deleted.',
-  });
-
-  const handleDeleteRequest = useCallback((id, label) => {
-    setDeleteTarget({ mode: 'single', id, label: label || 'this employee' });
-  }, []);
-
-  const handleBulkDeleteRequest = useCallback(() => {
-    if (!selectedCount) return;
-    setDeleteTarget({ mode: 'bulk', count: selectedCount });
-  }, [selectedCount]);
-
-  const handleDeleteConfirm = useCallback(async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      if (deleteTarget.mode === 'bulk') {
-        const res = await fetch(`${API_BASE}/admin/employees/bulk-delete`, {
-          method: 'POST',
-          headers: {
-            ...getAdminAuthHeaders(),
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ ids: Array.from(selectedIds) }),
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok || !json?.ok) {
-          throw new Error(json?.message || 'Failed to delete selected employees.');
-        }
-        toast(`${json.deleted || selectedCount} employee(s) deleted.`, { type: 'success' });
-        clearSelection();
-      } else if (deleteTarget.id) {
-        await deleteRecord(deleteTarget.id);
-      }
-      setDeleteTarget(null);
-      reloadTable();
-    } catch (err) {
-      toast(err?.message || 'Delete failed.', { type: 'error' });
-    } finally {
-      setDeleting(false);
-    }
-  }, [clearSelection, deleteRecord, deleteTarget, reloadTable, selectedCount, selectedIds, toast]);
-
-  const handleStatusRequest = useCallback((status) => {
-    if (!selectedCount) return;
-    setStatusTarget({ status, count: selectedCount });
-  }, [selectedCount]);
-
-  const handleStatusConfirm = useCallback(async () => {
-    if (!statusTarget?.status) return;
-    setUpdatingStatus(true);
-    try {
-      const res = await fetch(`${API_BASE}/admin/employees/bulk-status`, {
-        method: 'POST',
-        headers: {
-          ...getAdminAuthHeaders(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ids: Array.from(selectedIds),
-          status: statusTarget.status,
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.message || 'Failed to update employee status.');
-      }
-      toast(`${json.updated || selectedCount} employee(s) marked ${statusTarget.status}.`, { type: 'success' });
-      setStatusTarget(null);
-      clearSelection();
-      reloadTable();
-    } catch (err) {
-      toast(err?.message || 'Status update failed.', { type: 'error' });
-    } finally {
-      setUpdatingStatus(false);
-    }
-  }, [clearSelection, reloadTable, selectedCount, selectedIds, statusTarget, toast]);
-
-  const exportParams = useMemo(() => ({
-    code: appliedFilters.code,
-    name: appliedFilters.name,
-    role: appliedFilters.role,
-    branchId: appliedFilters.branchId,
-    status: appliedFilters.status,
-    ids: selectedCount ? Array.from(selectedIds).join(',') : '',
-  }), [appliedFilters, selectedCount, selectedIds]);
-
-  const handleExport = useCallback(async (format) => {
-    if (!canView) return;
-    setExportingFormat(format);
-    try {
-      await downloadAdminExport({
-        path: '/admin/employees/export',
-        params: {
-          format,
-          ...exportParams,
-        },
-        fallbackFilename: `employees.${format}`,
-        errorMessage: `Failed to export employees as ${format.toUpperCase()}.`,
-      });
-      toast(`Employees exported as ${format.toUpperCase()}.`, { type: 'success' });
-    } catch (err) {
-      toast(err?.message || 'Export failed.', { type: 'error' });
-    } finally {
-      setExportingFormat('');
-    }
-  }, [canView, exportParams, toast]);
-
-  const tableActions = useMemo(() => {
-    const busy = Boolean(exportingFormat || deleting || updatingStatus);
-    const items = [];
-
-    if (canView) {
-      items.push(
-        {
-          key: 'export-csv',
-          label: exportingFormat === 'csv' ? 'Exporting CSV…' : 'Export CSV',
-          disabled: busy,
-          onClick: () => handleExport('csv'),
-        },
-        {
-          key: 'export-pdf',
-          label: exportingFormat === 'pdf' ? 'Exporting PDF…' : 'Export PDF',
-          disabled: busy,
-          onClick: () => handleExport('pdf'),
-        },
-      );
-    }
-
-    if (canManage) {
-      items.push({ key: 'divider-manage', type: 'divider' });
-      items.push(
-        {
-          key: 'status-active',
-          label: 'Mark active',
-          disabled: busy || !selectedCount,
-          onClick: () => handleStatusRequest('active'),
-        },
-        {
-          key: 'status-inactive',
-          label: 'Mark inactive',
-          disabled: busy || !selectedCount,
-          onClick: () => handleStatusRequest('inactive'),
-        },
-        {
-          key: 'delete',
-          label: 'Delete selected',
-          tone: 'danger',
-          disabled: busy || !selectedCount,
-          onClick: handleBulkDeleteRequest,
-        },
-      );
-    }
-
-    return items;
-  }, [
-    canManage,
-    canView,
-    deleting,
-    exportingFormat,
-    handleBulkDeleteRequest,
-    handleExport,
-    handleStatusRequest,
-    selectedCount,
-    updatingStatus,
-  ]);
-
   const columns = useMemo(() => [
-    {
-      key: 'employeeCode',
-      label: 'Code',
-      render: (_, row) => textHtml(row.employeeCode),
-    },
-    {
-      key: 'fullName',
-      label: 'Name',
-      render: (_, row) => textHtml(row.fullName),
-    },
+    { key: 'employeeCode', label: 'Code', render: (_, row) => textHtml(row.employeeCode) },
+    { key: 'fullName', label: 'Name', render: (_, row) => textHtml(row.fullName) },
     { key: 'jobTitle', label: 'Role', render: (_, row) => textHtml(row.jobTitle) },
     {
       key: 'branchName',
@@ -288,21 +119,9 @@ export default function EmployeesListPage() {
       label: 'Contact',
       render: (_, row) => contactHtml(row.phone, row.email),
     },
-    {
-      key: 'assetsCount',
-      label: 'Assets',
-      render: (_, row) => qtyHtml(row.assetsCount),
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (_, row) => employeeStatusHtml(row.status),
-    },
-    {
-      key: 'updatedAt',
-      label: 'Updated',
-      render: (_, row) => dateHtml(row.updatedAt),
-    },
+    { key: 'assetsCount', label: 'Assets', render: (_, row) => qtyHtml(row.assetsCount) },
+    { key: 'status', label: 'Status', render: (_, row) => employeeStatusHtml(row.status) },
+    { key: 'updatedAt', label: 'Updated', render: (_, row) => dateHtml(row.updatedAt) },
     {
       key: 'actions',
       label: 'Actions',
@@ -317,17 +136,18 @@ export default function EmployeesListPage() {
     },
   ], [canManage]);
 
-  const ajaxParams = useMemo(() => ({
-    code: appliedFilters.code,
-    name: appliedFilters.name,
-    role: appliedFilters.role,
-    branchId: appliedFilters.branchId,
-    status: appliedFilters.status,
-  }), [appliedFilters]);
+  const ajaxParams = useMemo(() => ({ ...appliedFilters }), [appliedFilters]);
+  const filterOptions = useMemo(() => ({
+    branches: buildBranchOptions(branches),
+  }), [branches]);
 
-  const tableKey = useMemo(() => (
-    `employees-${appliedFilters.code}-${appliedFilters.name}-${appliedFilters.role}-${appliedFilters.branchId}-${appliedFilters.status}-${canManage ? 'manage' : 'view'}`
-  ), [appliedFilters, canManage]);
+  const tableActions = useMemo(() => buildTableActions({
+    appliedFilters,
+    statusActions: [
+      { key: 'status-active', label: 'Mark active', status: 'active' },
+      { key: 'status-inactive', label: 'Mark inactive', status: 'inactive' },
+    ],
+  }), [appliedFilters, buildTableActions]);
 
   return (
     <div>
@@ -350,16 +170,17 @@ export default function EmployeesListPage() {
         ) : null}
       />
 
-      <EmployeeListFilters
+      <DynamicListFilters
+        fields={EMPLOYEE_FILTER_FIELDS}
         values={filters}
         onChange={setFilters}
-        branches={branches}
+        optionsMap={filterOptions}
         onApply={(next) => {
           setAppliedFilters(next);
           clearSelection();
         }}
         onClear={() => {
-          const cleared = buildInitialFilters('');
+          const cleared = buildInitialFilters(EMPLOYEE_FILTER_FIELDS);
           setFilters(cleared);
           setAppliedFilters(cleared);
           clearSelection();
@@ -369,11 +190,7 @@ export default function EmployeesListPage() {
       <Card
         noPadding
         actions={(canView || canManage) ? (
-          <TableActionsMenu
-            selectedCount={selectedCount}
-            disabled={Boolean(exportingFormat || deleting || updatingStatus)}
-            actions={tableActions}
-          />
+          <TableActionsMenu selectedCount={selectedCount} disabled={busy} actions={tableActions} />
         ) : null}
       >
         <DataTable
@@ -386,13 +203,8 @@ export default function EmployeesListPage() {
           emptyTitle="No employees found"
           getRowHref={(row) => `/admin/employees/${row.id}`}
           onRowDelete={canManage ? handleDeleteRequest : undefined}
-          selectable={(canView || canManage) ? {
-            idKey: 'id',
-            selectedIds,
-            onSelectionChange: handleSelectionChange,
-            disabled: deleting || updatingStatus,
-          } : null}
-          tableKey={tableKey}
+          selectable={selectable}
+          tableKey={`employees-${Object.values(appliedFilters).join('-')}-${canManage ? 'manage' : 'view'}`}
         />
       </Card>
 
@@ -413,7 +225,7 @@ export default function EmployeesListPage() {
         onClose={() => !updatingStatus && setStatusTarget(null)}
         onConfirm={handleStatusConfirm}
         title="Change employee status"
-        message={`Mark ${statusTarget?.count || 0} selected employee(s) as ${statusTarget?.status || ''}?`}
+        message={`Mark ${statusTarget?.count || 0} selected employee(s) as ${statusTarget?.label || statusTarget?.status || ''}?`}
         confirmLabel="Update status"
         loading={updatingStatus}
       />
