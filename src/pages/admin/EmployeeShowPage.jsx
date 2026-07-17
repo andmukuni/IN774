@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Building2,
@@ -13,6 +13,7 @@ import {
   DataTable,
   Spinner,
   StatusBadge,
+  ConfirmDialog,
 } from '../../components/ui';
 import RecordShowActions from '../../components/admin/RecordShowActions';
 import { useFetchRecord } from '../../hooks/useFetchRecord';
@@ -25,6 +26,7 @@ import {
   qtyHtml,
   dateHtml,
   currencyHtml,
+  catalogRowActionsHtml,
 } from '../../utils/datatableHelpers';
 
 function profileInitials(firstName, lastName) {
@@ -32,46 +34,88 @@ function profileInitials(firstName, lastName) {
   return parts.join('').toUpperCase() || '?';
 }
 
-const assignedItemColumns = [
-  {
-    key: 'sku',
-    label: 'S/N',
-    render: (_, row) => skuHtml(row.sku, row.name),
-  },
-  { key: 'category', label: 'Category' },
-  {
-    key: 'quantity',
-    label: 'Qty',
-    render: (_, row) => qtyHtml(row.quantity, row.reorderLevel),
-  },
-  {
-    key: 'unitPrice',
-    label: 'Price (K)',
-    render: (_, row) => currencyHtml(row.unitPrice),
-  },
-  {
-    key: 'status',
-    label: 'Status',
-    render: (_, row) => productStatusHtml(row.status),
-  },
-  {
-    key: 'updatedAt',
-    label: 'Updated',
-    render: (_, row) => dateHtml(row.updatedAt),
-  },
-];
-
 export default function EmployeeShowPage() {
   const { id } = useParams();
   const { hasPermission } = useAuth();
-  const canManage = hasPermission('employees.manage');
+  const canManageEmployees = hasPermission('employees.manage');
+  const canManageItems = hasPermission('items.manage');
   const { record: profile, loading, error } = useFetchRecord('/admin/employees', id);
-  const deleteRecord = useDeleteRecord('/admin/employees', {
+  const deleteEmployee = useDeleteRecord('/admin/employees', {
     redirectTo: '/admin/employees',
     successMessage: 'Employee deleted.',
   });
+  const deleteItem = useDeleteRecord('/admin/items', {
+    successMessage: 'Product deleted.',
+  });
+
+  const tableRef = useRef(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const ajaxParams = useMemo(() => ({ employeeId: id }), [id]);
+
+  const reloadTable = useCallback(() => {
+    tableRef.current?.reload(false);
+  }, []);
+
+  const handleDeleteRequest = useCallback((itemId, label) => {
+    setDeleteTarget({ id: itemId, label: label || 'this product' });
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget?.id) return;
+    setDeleting(true);
+    try {
+      await deleteItem(deleteTarget.id);
+      setDeleteTarget(null);
+      reloadTable();
+    } catch {
+      // Toast handled in hook; keep dialog open on failure.
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteItem, deleteTarget, reloadTable]);
+
+  const assignedItemColumns = useMemo(() => [
+    {
+      key: 'sku',
+      label: 'S/N',
+      render: (_, row) => skuHtml(row.sku, row.name),
+    },
+    { key: 'category', label: 'Category' },
+    {
+      key: 'quantity',
+      label: 'Qty',
+      render: (_, row) => qtyHtml(row.quantity, row.reorderLevel),
+    },
+    {
+      key: 'unitPrice',
+      label: 'Price (K)',
+      render: (_, row) => currencyHtml(row.unitPrice),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (_, row) => productStatusHtml(row.status),
+    },
+    {
+      key: 'updatedAt',
+      label: 'Updated',
+      render: (_, row) => dateHtml(row.updatedAt),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      orderable: false,
+      sortable: false,
+      className: 'dt-right',
+      render: (_, row) => catalogRowActionsHtml('/admin/items', row, {
+        canManage: canManageItems,
+        canDelete: canManageItems,
+        deleteLabel: row.sku || row.name,
+      }),
+    },
+  ], [canManageItems]);
 
   return (
     <div>
@@ -87,8 +131,8 @@ export default function EmployeeShowPage() {
           <RecordShowActions
             backTo="/admin/employees"
             backLabel="Back to employees"
-            editTo={canManage && id ? `/admin/employees/${id}/edit` : undefined}
-            onDelete={canManage && id ? () => deleteRecord(id) : undefined}
+            editTo={canManageEmployees && id ? `/admin/employees/${id}/edit` : undefined}
+            onDelete={canManageEmployees && id ? () => deleteEmployee(id) : undefined}
             deleteTitle="Delete employee"
             deleteMessage={`Delete ${profile?.fullName || 'this employee'}? Assigned products will be unlinked.`}
           />
@@ -241,6 +285,7 @@ export default function EmployeeShowPage() {
             noPadding
           >
             <DataTable
+              ref={tableRef}
               columns={assignedItemColumns}
               serverSide
               ajaxUrl="/admin/items"
@@ -248,11 +293,22 @@ export default function EmployeeShowPage() {
               pageLength={10}
               emptyTitle="No products assigned to this employee"
               getRowHref={(row) => `/admin/items/${row.id}`}
-              tableKey={`employee-items-${id}`}
+              onRowDelete={canManageItems ? handleDeleteRequest : undefined}
+              tableKey={`employee-items-${id}-${canManageItems ? 'manage' : 'view'}`}
             />
           </Card>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete product"
+        message={`Delete ${deleteTarget?.label || 'this product'}? This cannot be undone.`}
+        confirmLabel="Delete"
+        loading={deleting}
+      />
     </div>
   );
 }
