@@ -7,6 +7,7 @@ import {
   branchStatusHtml,
   contactHtml,
   dateHtml,
+  qtyHtml,
   textHtml,
 } from '../../utils/datatableHelpers';
 
@@ -39,6 +40,11 @@ export default function BranchesListPage() {
       key: 'phone',
       label: 'Contact',
       render: (_, row) => contactHtml(row.phone, row.managerName),
+    },
+    {
+      key: 'assetsCount',
+      label: 'Assets',
+      render: (_, row) => qtyHtml(row.assetsCount),
     },
     {
       key: 'status',

@@ -49,10 +49,10 @@ const SORT_COLUMN_MAP = {
 
 const BRANCH_SORT_COLUMN_MAP = {
   code: 'code',
-  name: 'name',
   city: 'city',
+  address: 'address',
   phone: 'phone',
-  manager_name: 'manager_name',
+  assets_count: 'assets_count',
   status: 'status',
   updated_at: 'updated_at',
 };
@@ -643,7 +643,14 @@ export function createAdminRouter() {
       const orderClause = buildOrderClause(q.sortColumn, q.sortDir, BRANCH_SORT_COLUMN_MAP, 'updated_at');
 
       const [rows] = await pool.query(
-        `SELECT id, code, name, city, address, phone, manager_name, status, updated_at
+        `SELECT
+           id, code, name, city, address, phone, manager_name, status, updated_at,
+           (
+             SELECT COUNT(*)
+             FROM products p
+             LEFT JOIN employees e ON e.id = p.employee_id
+             WHERE p.branch_id = branches.id OR e.branch_id = branches.id
+           ) AS assets_count
          FROM branches ${where} ${orderClause} LIMIT ? OFFSET ?`,
         [...params, q.limit, q.offset],
       );
