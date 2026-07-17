@@ -74,9 +74,75 @@ const EMPLOYEE_SORT_COLUMN_MAP = {
   updated_at: 'e.updated_at',
 };
 
-function buildEmployeeWhere(search, statusFilter) {
+function parseEmployeeIdList(value) {
+  if (Array.isArray(value)) {
+    return value.map((id) => String(id || '').trim()).filter(Boolean);
+  }
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+  return raw.split(',').map((id) => id.trim()).filter(Boolean);
+}
+
+function parseEmployeeFilters(query = {}) {
+  return {
+    code: String(query.code || '').trim(),
+    name: String(query.name || '').trim(),
+    role: String(query.role || '').trim(),
+    branchId: String(query.branchId || query.branch_id || '').trim(),
+    status: String(query.status || '').trim(),
+    search: String(query.search || query.q || '').trim(),
+    ids: parseEmployeeIdList(query.ids),
+  };
+}
+
+function buildEmployeeWhere(filters = {}) {
+  const {
+    code = '',
+    name = '',
+    role = '',
+    branchId = '',
+    status = '',
+    search = '',
+    ids = [],
+  } = filters;
+
   const clauses = [];
   const params = [];
+
+  if (ids.length) {
+    clauses.push(`e.id IN (${ids.map(() => '?').join(', ')})`);
+    params.push(...ids);
+  }
+
+  if (code) {
+    clauses.push('e.employee_code LIKE ?');
+    params.push(`%${code}%`);
+  }
+
+  if (name) {
+    clauses.push(`(
+      e.first_name LIKE ?
+      OR e.last_name LIKE ?
+      OR CONCAT(e.first_name, ' ', e.last_name) LIKE ?
+    )`);
+    const term = `%${name}%`;
+    params.push(term, term, term);
+  }
+
+  if (role) {
+    clauses.push('e.job_title LIKE ?');
+    params.push(`%${role}%`);
+  }
+
+  if (branchId) {
+    clauses.push('e.branch_id = ?');
+    params.push(branchId);
+  }
+
+  if (status) {
+    clauses.push('e.status = ?');
+    params.push(status);
+  }
 
   if (search) {
     clauses.push(`(
@@ -94,13 +160,21 @@ function buildEmployeeWhere(search, statusFilter) {
     params.push(term, term, term, term, term, term, term, term, term);
   }
 
-  if (statusFilter) {
-    clauses.push('e.status = ?');
-    params.push(statusFilter);
-  }
-
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   return { where, params };
+}
+
+function buildEmployeeExportSubtitle(filters = {}, count = 0) {
+  const parts = [];
+  if (filters.ids?.length) parts.push(`${filters.ids.length} selected`);
+  if (filters.code) parts.push(`Code: ${filters.code}`);
+  if (filters.name) parts.push(`Name: ${filters.name}`);
+  if (filters.role) parts.push(`Role: ${filters.role}`);
+  if (filters.branchId) parts.push(`Branch: ${filters.branchId}`);
+  if (filters.status) parts.push(`Status: ${filters.status}`);
+  if (filters.search) parts.push(`Search: ${filters.search}`);
+  parts.push(`${count} record(s)`);
+  return parts.join(' · ');
 }
 
 function buildBranchWhere(search, statusFilter) {
@@ -1189,9 +1263,8 @@ export function createAdminRouter() {
   router.get('/employees/export', async (req, res) => {
     try {
       const format = String(req.query.format || 'csv').trim().toLowerCase();
-      const search = String(req.query.search || req.query.q || '').trim();
-      const statusFilter = String(req.query.status || '').trim();
-      const { where, params } = buildEmployeeWhere(search, statusFilter);
+      const filters = parseEmployeeFilters(req.query);
+      const { where, params } = buildEmployeeWhere(filters);
 
       const [rows] = await pool.query(
         `SELECT e.id, e.employee_code, e.first_name, e.last_name, e.email, e.phone, e.job_title, e.branch_id, e.status, e.updated_at,
@@ -1210,17 +1283,13 @@ export function createAdminRouter() {
       );
 
       const data = rows.map(mapEmployeeRow);
-      const title = statusFilter === 'inactive'
+      const title = filters.status === 'inactive'
         ? 'Inactive Employees'
-        : statusFilter === 'active'
+        : filters.status === 'active'
           ? 'Active Employees'
           : 'Employees';
-      const subtitle = [
-        search ? `Search: ${search}` : null,
-        statusFilter ? `Status: ${statusFilter}` : null,
-        `${data.length} record(s)`,
-      ].filter(Boolean).join(' · ');
-      const filename = buildEmployeesExportFilename(format === 'pdf' ? 'pdf' : 'csv', { status: statusFilter });
+      const subtitle = buildEmployeeExportSubtitle(filters, data.length);
+      const filename = buildEmployeesExportFilename(format === 'pdf' ? 'pdf' : 'csv', { status: filters.status });
 
       if (format === 'pdf') {
         const pdfBuffer = await buildEmployeesPdfBuffer(data, { title, subtitle });
@@ -1245,8 +1314,9 @@ export function createAdminRouter() {
   router.get('/employees', async (req, res) => {
     try {
       const q = parseTableQuery(req.query);
-      const statusFilter = String(req.query.status || '').trim();
-      const { where, params } = buildEmployeeWhere(q.search, statusFilter);
+      const filters = parseEmployeeFilters(req.query);
+      if (!filters.search && q.search) filters.search = q.search;
+      const { where, params } = buildEmployeeWhere(filters);
 
       const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM employees e LEFT JOIN branches b ON b.id = e.branch_id ${where}`,
@@ -1277,6 +1347,57 @@ export function createAdminRouter() {
       }
 
       return res.json({ ok: true, data });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/employees/bulk-delete', async (req, res) => {
+    try {
+      const ids = parseEmployeeIdList(req.body?.ids);
+      if (!ids.length) {
+        return res.status(400).json({ ok: false, message: 'Select at least one employee to delete.' });
+      }
+
+      const placeholders = ids.map(() => '?').join(', ');
+      const [existingRows] = await pool.query(
+        `SELECT id FROM employees WHERE id IN (${placeholders})`,
+        ids,
+      );
+      const existingIds = existingRows.map((row) => row.id);
+      if (!existingIds.length) {
+        return res.status(404).json({ ok: false, message: 'No matching employees were found.' });
+      }
+
+      const updatePlaceholders = existingIds.map(() => '?').join(', ');
+      await pool.query(`UPDATE products SET employee_id = NULL WHERE employee_id IN (${updatePlaceholders})`, existingIds);
+      await pool.query(`DELETE FROM employees WHERE id IN (${updatePlaceholders})`, existingIds);
+
+      res.json({ ok: true, deleted: existingIds.length });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/employees/bulk-status', async (req, res) => {
+    try {
+      const ids = parseEmployeeIdList(req.body?.ids);
+      const status = String(req.body?.status || '').trim().toLowerCase();
+
+      if (!ids.length) {
+        return res.status(400).json({ ok: false, message: 'Select at least one employee to update.' });
+      }
+      if (!['active', 'inactive'].includes(status)) {
+        return res.status(400).json({ ok: false, message: 'Status must be active or inactive.' });
+      }
+
+      const placeholders = ids.map(() => '?').join(', ');
+      const [result] = await pool.query(
+        `UPDATE employees SET status = ? WHERE id IN (${placeholders})`,
+        [status, ...ids],
+      );
+
+      res.json({ ok: true, updated: Number(result?.affectedRows || 0), status });
     } catch (error) {
       res.status(500).json({ ok: false, message: error.message });
     }

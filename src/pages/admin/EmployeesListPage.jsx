@@ -1,14 +1,14 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Download, FileSpreadsheet, FileText, PlusCircle } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 import {
   PageHeader,
   DataTable,
   Card,
-  ListSearchFilters,
-  emptySearchFilters,
   ConfirmDialog,
+  TableActionsMenu,
 } from '../../components/ui';
+import EmployeeListFilters, { emptyEmployeeFilters } from '../../components/admin/EmployeeListFilters';
 import {
   branchCodeHtml,
   catalogRowActionsHtml,
@@ -22,6 +22,16 @@ import { useAuth } from '../../context/AuthContext';
 import { useDeleteRecord } from '../../hooks/useDeleteRecord';
 import { useToast } from '../../context/ToastContext';
 import { downloadAdminExport } from '../../utils/exportDownload';
+import { getApiBase } from '../../utils/apiBase';
+import { getAdminAuthHeaders } from '../../utils/authHeaders';
+
+const API_BASE = getApiBase();
+
+function buildInitialFilters(statusFromUrl = '') {
+  const base = emptyEmployeeFilters();
+  if (statusFromUrl) base.status = statusFromUrl;
+  return base;
+}
 
 export default function EmployeesListPage() {
   const toast = useToast();
@@ -29,22 +39,63 @@ export default function EmployeesListPage() {
   const canManage = hasPermission('employees.manage');
   const canView = hasPermission('employees.view');
   const [searchParams] = useSearchParams();
-  const statusFilter = searchParams.get('status') || '';
+  const statusFromUrl = searchParams.get('status') || '';
   const tableRef = useRef(null);
-  const [filters, setFilters] = useState(emptySearchFilters);
-  const [appliedFilters, setAppliedFilters] = useState(emptySearchFilters);
+  const [branches, setBranches] = useState([]);
+  const [filters, setFilters] = useState(() => buildInitialFilters(statusFromUrl));
+  const [appliedFilters, setAppliedFilters] = useState(() => buildInitialFilters(statusFromUrl));
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [statusTarget, setStatusTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [exportingFormat, setExportingFormat] = useState('');
+  const selectedCount = selectedIds.size;
+
+  useEffect(() => {
+    const next = buildInitialFilters(statusFromUrl);
+    setFilters(next);
+    setAppliedFilters(next);
+    setSelectedIds(new Set());
+    tableRef.current?.clearSelection?.();
+  }, [statusFromUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/admin/branches?limit=100`, {
+          headers: getAdminAuthHeaders(),
+          cache: 'no-store',
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && json?.ok) {
+          setBranches(json.data || []);
+        }
+      } catch {
+        if (!cancelled) toast('Unable to load branches.', { type: 'error' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [toast]);
 
   const pageTitle = useMemo(() => {
-    if (statusFilter === 'inactive') return 'Inactive Employees';
-    if (statusFilter === 'active') return 'Active Employees';
+    if (appliedFilters.status === 'inactive') return 'Inactive Employees';
+    if (appliedFilters.status === 'active') return 'Active Employees';
     return 'Employees';
-  }, [statusFilter]);
+  }, [appliedFilters.status]);
 
   const reloadTable = useCallback(() => {
     tableRef.current?.reload(false);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    tableRef.current?.clearSelection?.();
+  }, []);
+
+  const handleSelectionChange = useCallback((next) => {
+    setSelectedIds(next instanceof Set ? new Set(next) : new Set(next || []));
   }, []);
 
   const deleteRecord = useDeleteRecord('/admin/employees', {
@@ -52,22 +103,88 @@ export default function EmployeesListPage() {
   });
 
   const handleDeleteRequest = useCallback((id, label) => {
-    setDeleteTarget({ id, label: label || 'this employee' });
+    setDeleteTarget({ mode: 'single', id, label: label || 'this employee' });
   }, []);
 
+  const handleBulkDeleteRequest = useCallback(() => {
+    if (!selectedCount) return;
+    setDeleteTarget({ mode: 'bulk', count: selectedCount });
+  }, [selectedCount]);
+
   const handleDeleteConfirm = useCallback(async () => {
-    if (!deleteTarget?.id) return;
+    if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await deleteRecord(deleteTarget.id);
+      if (deleteTarget.mode === 'bulk') {
+        const res = await fetch(`${API_BASE}/admin/employees/bulk-delete`, {
+          method: 'POST',
+          headers: {
+            ...getAdminAuthHeaders(),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ids: Array.from(selectedIds) }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.message || 'Failed to delete selected employees.');
+        }
+        toast(`${json.deleted || selectedCount} employee(s) deleted.`, { type: 'success' });
+        clearSelection();
+      } else if (deleteTarget.id) {
+        await deleteRecord(deleteTarget.id);
+      }
       setDeleteTarget(null);
       reloadTable();
-    } catch {
-      // Toast handled in hook; keep dialog open on failure.
+    } catch (err) {
+      toast(err?.message || 'Delete failed.', { type: 'error' });
     } finally {
       setDeleting(false);
     }
-  }, [deleteRecord, deleteTarget, reloadTable]);
+  }, [clearSelection, deleteRecord, deleteTarget, reloadTable, selectedCount, selectedIds, toast]);
+
+  const handleStatusRequest = useCallback((status) => {
+    if (!selectedCount) return;
+    setStatusTarget({ status, count: selectedCount });
+  }, [selectedCount]);
+
+  const handleStatusConfirm = useCallback(async () => {
+    if (!statusTarget?.status) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/employees/bulk-status`, {
+        method: 'POST',
+        headers: {
+          ...getAdminAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ids: Array.from(selectedIds),
+          status: statusTarget.status,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || 'Failed to update employee status.');
+      }
+      toast(`${json.updated || selectedCount} employee(s) marked ${statusTarget.status}.`, { type: 'success' });
+      setStatusTarget(null);
+      clearSelection();
+      reloadTable();
+    } catch (err) {
+      toast(err?.message || 'Status update failed.', { type: 'error' });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }, [clearSelection, reloadTable, selectedCount, selectedIds, statusTarget, toast]);
+
+  const exportParams = useMemo(() => ({
+    code: appliedFilters.code,
+    name: appliedFilters.name,
+    role: appliedFilters.role,
+    branchId: appliedFilters.branchId,
+    status: appliedFilters.status,
+    ids: selectedCount ? Array.from(selectedIds).join(',') : '',
+  }), [appliedFilters, selectedCount, selectedIds]);
 
   const handleExport = useCallback(async (format) => {
     if (!canView) return;
@@ -77,8 +194,7 @@ export default function EmployeesListPage() {
         path: '/admin/employees/export',
         params: {
           format,
-          search: appliedFilters.search,
-          status: statusFilter,
+          ...exportParams,
         },
         fallbackFilename: `employees.${format}`,
         errorMessage: `Failed to export employees as ${format.toUpperCase()}.`,
@@ -89,7 +205,66 @@ export default function EmployeesListPage() {
     } finally {
       setExportingFormat('');
     }
-  }, [appliedFilters.search, canView, statusFilter, toast]);
+  }, [canView, exportParams, toast]);
+
+  const tableActions = useMemo(() => {
+    const busy = Boolean(exportingFormat || deleting || updatingStatus);
+    const items = [];
+
+    if (canView) {
+      items.push(
+        {
+          key: 'export-csv',
+          label: exportingFormat === 'csv' ? 'Exporting CSV…' : 'Export CSV',
+          disabled: busy,
+          onClick: () => handleExport('csv'),
+        },
+        {
+          key: 'export-pdf',
+          label: exportingFormat === 'pdf' ? 'Exporting PDF…' : 'Export PDF',
+          disabled: busy,
+          onClick: () => handleExport('pdf'),
+        },
+      );
+    }
+
+    if (canManage) {
+      items.push({ key: 'divider-manage', type: 'divider' });
+      items.push(
+        {
+          key: 'status-active',
+          label: 'Mark active',
+          disabled: busy || !selectedCount,
+          onClick: () => handleStatusRequest('active'),
+        },
+        {
+          key: 'status-inactive',
+          label: 'Mark inactive',
+          disabled: busy || !selectedCount,
+          onClick: () => handleStatusRequest('inactive'),
+        },
+        {
+          key: 'delete',
+          label: 'Delete selected',
+          tone: 'danger',
+          disabled: busy || !selectedCount,
+          onClick: handleBulkDeleteRequest,
+        },
+      );
+    }
+
+    return items;
+  }, [
+    canManage,
+    canView,
+    deleting,
+    exportingFormat,
+    handleBulkDeleteRequest,
+    handleExport,
+    handleStatusRequest,
+    selectedCount,
+    updatingStatus,
+  ]);
 
   const columns = useMemo(() => [
     {
@@ -143,9 +318,16 @@ export default function EmployeesListPage() {
   ], [canManage]);
 
   const ajaxParams = useMemo(() => ({
-    search: appliedFilters.search,
-    status: statusFilter,
-  }), [appliedFilters.search, statusFilter]);
+    code: appliedFilters.code,
+    name: appliedFilters.name,
+    role: appliedFilters.role,
+    branchId: appliedFilters.branchId,
+    status: appliedFilters.status,
+  }), [appliedFilters]);
+
+  const tableKey = useMemo(() => (
+    `employees-${appliedFilters.code}-${appliedFilters.name}-${appliedFilters.role}-${appliedFilters.branchId}-${appliedFilters.status}-${canManage ? 'manage' : 'view'}`
+  ), [appliedFilters, canManage]);
 
   return (
     <div>
@@ -157,66 +339,43 @@ export default function EmployeesListPage() {
           { label: 'Inventory', to: '/admin/items' },
           { label: pageTitle },
         ]}
-        actions={(
-          <div className="flex flex-wrap items-center gap-2">
-            {canView && (
-              <div className="inline-flex overflow-hidden rounded-xl border border-navy-200 bg-white">
-                <button
-                  type="button"
-                  onClick={() => handleExport('csv')}
-                  disabled={Boolean(exportingFormat)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50 disabled:opacity-50"
-                >
-                  <FileSpreadsheet size={15} />
-                  {exportingFormat === 'csv' ? 'Exporting…' : 'CSV'}
-                </button>
-                <span className="w-px self-stretch bg-navy-200" />
-                <button
-                  type="button"
-                  onClick={() => handleExport('pdf')}
-                  disabled={Boolean(exportingFormat)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50 disabled:opacity-50"
-                >
-                  <FileText size={15} />
-                  {exportingFormat === 'pdf' ? 'Exporting…' : 'PDF'}
-                </button>
-              </div>
-            )}
-            {canManage ? (
-              <Link
-                to="/admin/employees/new"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
-              >
-                <PlusCircle size={16} />
-                Add employee
-              </Link>
-            ) : null}
-          </div>
-        )}
+        actions={canManage ? (
+          <Link
+            to="/admin/employees/new"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
+          >
+            <PlusCircle size={16} />
+            Add employee
+          </Link>
+        ) : null}
       />
 
-      <ListSearchFilters
+      <EmployeeListFilters
         values={filters}
         onChange={setFilters}
+        branches={branches}
         onApply={(next) => {
           setAppliedFilters(next);
+          clearSelection();
         }}
         onClear={() => {
-          const cleared = emptySearchFilters();
+          const cleared = buildInitialFilters('');
           setFilters(cleared);
           setAppliedFilters(cleared);
+          clearSelection();
         }}
-        placeholder="Search code, name, role, branch, email, or phone..."
       />
 
-      {canView && (
-        <div className="mb-4 flex items-center gap-2 text-xs text-navy-500">
-          <Download size={14} />
-          Exports include the current search and status filters.
-        </div>
-      )}
-
-      <Card noPadding>
+      <Card
+        noPadding
+        actions={(canView || canManage) ? (
+          <TableActionsMenu
+            selectedCount={selectedCount}
+            disabled={Boolean(exportingFormat || deleting || updatingStatus)}
+            actions={tableActions}
+          />
+        ) : null}
+      >
         <DataTable
           ref={tableRef}
           columns={columns}
@@ -227,7 +386,13 @@ export default function EmployeesListPage() {
           emptyTitle="No employees found"
           getRowHref={(row) => `/admin/employees/${row.id}`}
           onRowDelete={canManage ? handleDeleteRequest : undefined}
-          tableKey={`employees-${statusFilter}-${appliedFilters.search}-${canManage ? 'manage' : 'view'}`}
+          selectable={(canView || canManage) ? {
+            idKey: 'id',
+            selectedIds,
+            onSelectionChange: handleSelectionChange,
+            disabled: deleting || updatingStatus,
+          } : null}
+          tableKey={tableKey}
         />
       </Card>
 
@@ -235,10 +400,22 @@ export default function EmployeesListPage() {
         isOpen={Boolean(deleteTarget)}
         onClose={() => !deleting && setDeleteTarget(null)}
         onConfirm={handleDeleteConfirm}
-        title="Delete employee"
-        message={`Delete ${deleteTarget?.label || 'this employee'}? Assigned products will be unlinked.`}
+        title={deleteTarget?.mode === 'bulk' ? 'Delete selected employees' : 'Delete employee'}
+        message={deleteTarget?.mode === 'bulk'
+          ? `Delete ${deleteTarget.count} selected employee(s)? Assigned products will be unlinked.`
+          : `Delete ${deleteTarget?.label || 'this employee'}? Assigned products will be unlinked.`}
         confirmLabel="Delete"
         loading={deleting}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(statusTarget)}
+        onClose={() => !updatingStatus && setStatusTarget(null)}
+        onConfirm={handleStatusConfirm}
+        title="Change employee status"
+        message={`Mark ${statusTarget?.count || 0} selected employee(s) as ${statusTarget?.status || ''}?`}
+        confirmLabel="Update status"
+        loading={updatingStatus}
       />
     </div>
   );

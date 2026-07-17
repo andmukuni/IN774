@@ -8,6 +8,7 @@ export { default as FormField } from './FormField';
 export { default as Modal } from './Modal';
 export { default as RecordDetailView, productDetailFields, brandDetailFields, productTypeDetailFields, branchDetailFields, employeeDetailFields, userDetailFields } from './RecordDetailView';
 export { default as ConfirmDialog } from './ConfirmDialog';
+export { default as TableActionsMenu } from './TableActionsMenu';
 export { default as StatusBadge } from './StatusBadge';
 export { default as Spinner } from './Spinner';
 export { default as LoadingButton } from './LoadingButton';
