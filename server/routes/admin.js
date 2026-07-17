@@ -59,12 +59,11 @@ const BRANCH_SORT_COLUMN_MAP = {
 
 const EMPLOYEE_SORT_COLUMN_MAP = {
   employee_code: 'e.employee_code',
-  first_name: 'e.first_name',
-  last_name: 'e.last_name',
-  email: 'e.email',
-  phone: 'e.phone',
+  full_name: 'e.last_name',
   job_title: 'e.job_title',
   branch_name: 'b.name',
+  email: 'e.email',
+  assets_count: 'assets_count',
   status: 'e.status',
   updated_at: 'e.updated_at',
 };
@@ -1189,7 +1188,12 @@ export function createAdminRouter() {
 
       const [rows] = await pool.query(
         `SELECT e.id, e.employee_code, e.first_name, e.last_name, e.email, e.phone, e.job_title, e.branch_id, e.status, e.updated_at,
-                b.code AS branch_code, b.name AS branch_name
+                b.code AS branch_code, b.name AS branch_name,
+                (
+                  SELECT COUNT(*)
+                  FROM products p
+                  WHERE p.employee_id = e.id
+                ) AS assets_count
          FROM employees e
          LEFT JOIN branches b ON b.id = e.branch_id
          ${where} ${orderClause} LIMIT ? OFFSET ?`,

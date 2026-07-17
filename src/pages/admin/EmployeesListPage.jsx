@@ -15,6 +15,7 @@ import {
   contactHtml,
   dateHtml,
   employeeStatusHtml,
+  qtyHtml,
   textHtml,
 } from '../../utils/datatableHelpers';
 import { useAuth } from '../../context/AuthContext';
@@ -84,6 +85,11 @@ export default function EmployeesListPage() {
       key: 'email',
       label: 'Contact',
       render: (_, row) => contactHtml(row.phone, row.email),
+    },
+    {
+      key: 'assetsCount',
+      label: 'Assets',
+      render: (_, row) => qtyHtml(row.assetsCount),
     },
     {
       key: 'status',
