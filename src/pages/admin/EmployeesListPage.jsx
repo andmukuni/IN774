@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { PlusCircle } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, PlusCircle } from 'lucide-react';
 import {
   PageHeader,
   DataTable,
@@ -20,10 +20,14 @@ import {
 } from '../../utils/datatableHelpers';
 import { useAuth } from '../../context/AuthContext';
 import { useDeleteRecord } from '../../hooks/useDeleteRecord';
+import { useToast } from '../../context/ToastContext';
+import { downloadAdminExport } from '../../utils/exportDownload';
 
 export default function EmployeesListPage() {
+  const toast = useToast();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('employees.manage');
+  const canView = hasPermission('employees.view');
   const [searchParams] = useSearchParams();
   const statusFilter = searchParams.get('status') || '';
   const tableRef = useRef(null);
@@ -31,6 +35,7 @@ export default function EmployeesListPage() {
   const [appliedFilters, setAppliedFilters] = useState(emptySearchFilters);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState('');
 
   const pageTitle = useMemo(() => {
     if (statusFilter === 'inactive') return 'Inactive Employees';
@@ -63,6 +68,28 @@ export default function EmployeesListPage() {
       setDeleting(false);
     }
   }, [deleteRecord, deleteTarget, reloadTable]);
+
+  const handleExport = useCallback(async (format) => {
+    if (!canView) return;
+    setExportingFormat(format);
+    try {
+      await downloadAdminExport({
+        path: '/admin/employees/export',
+        params: {
+          format,
+          search: appliedFilters.search,
+          status: statusFilter,
+        },
+        fallbackFilename: `employees.${format}`,
+        errorMessage: `Failed to export employees as ${format.toUpperCase()}.`,
+      });
+      toast(`Employees exported as ${format.toUpperCase()}.`, { type: 'success' });
+    } catch (err) {
+      toast(err?.message || 'Export failed.', { type: 'error' });
+    } finally {
+      setExportingFormat('');
+    }
+  }, [appliedFilters.search, canView, statusFilter, toast]);
 
   const columns = useMemo(() => [
     {
@@ -130,15 +157,42 @@ export default function EmployeesListPage() {
           { label: 'Inventory', to: '/admin/items' },
           { label: pageTitle },
         ]}
-        actions={canManage ? (
-          <Link
-            to="/admin/employees/new"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
-          >
-            <PlusCircle size={16} />
-            Add employee
-          </Link>
-        ) : null}
+        actions={(
+          <div className="flex flex-wrap items-center gap-2">
+            {canView && (
+              <div className="inline-flex overflow-hidden rounded-xl border border-navy-200 bg-white">
+                <button
+                  type="button"
+                  onClick={() => handleExport('csv')}
+                  disabled={Boolean(exportingFormat)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50 disabled:opacity-50"
+                >
+                  <FileSpreadsheet size={15} />
+                  {exportingFormat === 'csv' ? 'Exporting…' : 'CSV'}
+                </button>
+                <span className="w-px self-stretch bg-navy-200" />
+                <button
+                  type="button"
+                  onClick={() => handleExport('pdf')}
+                  disabled={Boolean(exportingFormat)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50 disabled:opacity-50"
+                >
+                  <FileText size={15} />
+                  {exportingFormat === 'pdf' ? 'Exporting…' : 'PDF'}
+                </button>
+              </div>
+            )}
+            {canManage ? (
+              <Link
+                to="/admin/employees/new"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
+              >
+                <PlusCircle size={16} />
+                Add employee
+              </Link>
+            ) : null}
+          </div>
+        )}
       />
 
       <ListSearchFilters
@@ -154,6 +208,13 @@ export default function EmployeesListPage() {
         }}
         placeholder="Search code, name, role, branch, email, or phone..."
       />
+
+      {canView && (
+        <div className="mb-4 flex items-center gap-2 text-xs text-navy-500">
+          <Download size={14} />
+          Exports include the current search and status filters.
+        </div>
+      )}
 
       <Card noPadding>
         <DataTable

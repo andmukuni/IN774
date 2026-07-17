@@ -7,6 +7,11 @@ import { parseTableQuery, buildOrderClause, buildPaginatedResponse } from '../ut
 import { computeProductStatus, mapProductRow, PRODUCT_JOIN_SQL, PRODUCT_SELECT_FIELDS } from '../utils/inventoryHelpers.js';
 import { mapBranchRow } from '../utils/branchHelpers.js';
 import { mapEmployeeRow } from '../utils/employeeHelpers.js';
+import {
+  buildEmployeesCsv,
+  buildEmployeesExportFilename,
+  buildEmployeesPdfBuffer,
+} from '../utils/employeeExportHelpers.js';
 import { mapBrandRow } from '../utils/brandHelpers.js';
 import { mapProductTypeRow } from '../utils/productTypeHelpers.js';
 import {
@@ -1176,6 +1181,62 @@ export function createAdminRouter() {
 
       await pool.query('DELETE FROM product_types WHERE id = ?', [id]);
       res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.get('/employees/export', async (req, res) => {
+    try {
+      const format = String(req.query.format || 'csv').trim().toLowerCase();
+      const search = String(req.query.search || req.query.q || '').trim();
+      const statusFilter = String(req.query.status || '').trim();
+      const { where, params } = buildEmployeeWhere(search, statusFilter);
+
+      const [rows] = await pool.query(
+        `SELECT e.id, e.employee_code, e.first_name, e.last_name, e.email, e.phone, e.job_title, e.branch_id, e.status, e.updated_at,
+                b.code AS branch_code, b.name AS branch_name,
+                (
+                  SELECT COUNT(*)
+                  FROM products p
+                  WHERE p.employee_id = e.id
+                ) AS assets_count
+         FROM employees e
+         LEFT JOIN branches b ON b.id = e.branch_id
+         ${where}
+         ORDER BY e.last_name ASC, e.first_name ASC, e.employee_code ASC
+         LIMIT 10000`,
+        params,
+      );
+
+      const data = rows.map(mapEmployeeRow);
+      const title = statusFilter === 'inactive'
+        ? 'Inactive Employees'
+        : statusFilter === 'active'
+          ? 'Active Employees'
+          : 'Employees';
+      const subtitle = [
+        search ? `Search: ${search}` : null,
+        statusFilter ? `Status: ${statusFilter}` : null,
+        `${data.length} record(s)`,
+      ].filter(Boolean).join(' · ');
+      const filename = buildEmployeesExportFilename(format === 'pdf' ? 'pdf' : 'csv', { status: statusFilter });
+
+      if (format === 'pdf') {
+        const pdfBuffer = await buildEmployeesPdfBuffer(data, { title, subtitle });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.send(pdfBuffer);
+      }
+
+      if (format !== 'csv') {
+        return res.status(400).json({ ok: false, message: 'Supported export formats are csv and pdf.' });
+      }
+
+      const csv = buildEmployeesCsv(data, { title });
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(`\uFEFF${csv}`);
     } catch (error) {
       res.status(500).json({ ok: false, message: error.message });
     }
