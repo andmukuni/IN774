@@ -61,6 +61,15 @@ function generateRbacId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+async function syncRolePermissions(pool, roleId, permissionKeys = []) {
+  for (const permKey of permissionKeys) {
+    await pool.query(
+      'INSERT IGNORE INTO admin_role_permissions (role_id, permission_key) VALUES (?, ?)',
+      [roleId, permKey],
+    );
+  }
+}
+
 export async function seedRbac(pool) {
   await ensureRbacTables(pool);
 
@@ -85,12 +94,24 @@ export async function seedRbac(pool) {
     const [[roleRow]] = await pool.query('SELECT id FROM admin_roles WHERE slug = ? LIMIT 1', [roleDef.slug]);
     if (!roleRow?.id) continue;
 
-    for (const permKey of roleDef.permissions) {
-      await pool.query(
-        'INSERT IGNORE INTO admin_role_permissions (role_id, permission_key) VALUES (?, ?)',
-        [roleRow.id, permKey],
-      );
-    }
+    await syncRolePermissions(pool, roleRow.id, roleDef.permissions);
+  }
+
+  const [[superRoleRow]] = await pool.query(
+    'SELECT id FROM admin_roles WHERE slug = ? LIMIT 1',
+    [RBAC_SUPER_ADMIN_SLUG],
+  );
+  if (superRoleRow?.id) {
+    await syncRolePermissions(pool, superRoleRow.id, ALL_PERMISSION_KEYS);
+  }
+
+  const [[viewerRoleRow]] = await pool.query(
+    'SELECT id FROM admin_roles WHERE slug = ? LIMIT 1',
+    ['viewer'],
+  );
+  if (viewerRoleRow?.id) {
+    const viewerPermissions = ALL_PERMISSION_KEYS.filter((key) => key.endsWith('.view') || key === 'dashboard.view');
+    await syncRolePermissions(pool, viewerRoleRow.id, viewerPermissions);
   }
 
   const [[superRole]] = await pool.query(

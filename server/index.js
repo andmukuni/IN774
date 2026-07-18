@@ -11,7 +11,8 @@ import {
   ALL_PERMISSION_KEYS,
   permissionMatches,
 } from '../shared/rbacPermissions.js';
-import { resolveRouteAdminPermission } from './rbacService.js';
+import pool from './db.js';
+import { loadUserAdminPermissions, resolveRouteAdminPermission } from './rbacService.js';
 import { createHealthRouter } from './routes/health.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createAdminRouter } from './routes/admin.js';
@@ -96,14 +97,30 @@ function isAdminProtectedRoute(req) {
   return false;
 }
 
-app.use('/api', (req, res, next) => {
+app.use('/api', async (req, res, next) => {
   if (!isAdminProtectedRoute(req)) return next();
 
   const auth = authService.getAdminAuth(req);
   if (!auth.ok) return authService.sendAuthFailure(res, auth);
 
+  let perms = Array.isArray(auth.claims.permissions) ? auth.claims.permissions : [];
+
+  if (auth.source === 'jwt' && auth.claims?.sub) {
+    try {
+      const [[userRow]] = await pool.query(
+        'SELECT role FROM users WHERE id = ? LIMIT 1',
+        [auth.claims.sub],
+      );
+      perms = await loadUserAdminPermissions(pool, auth.claims.sub, {
+        legacyRole: userRow?.role || auth.claims.role,
+      });
+      auth.claims.permissions = perms;
+    } catch (error) {
+      console.warn('[auth] Failed to refresh admin permissions:', error.message);
+    }
+  }
+
   const requiredPerm = resolveRouteAdminPermission(req);
-  const perms = Array.isArray(auth.claims.permissions) ? auth.claims.permissions : [];
   const isLegacyAdmin = auth.claims.role === 'admin' && perms.length === 0;
 
   if (!isLegacyAdmin && !permissionMatches(perms, requiredPerm)) {

@@ -33,12 +33,14 @@ function formatDateTime(value) {
 export default function DeveloperPage() {
   const toast = useToast();
   const { hasPermission } = useAuth();
+  const canView = hasPermission('developer.view');
   const canManage = hasPermission('developer.manage');
 
-  const [loading, setLoading] = useState(true);
+  const [keysLoading, setKeysLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [keys, setKeys] = useState([]);
   const [meta, setMeta] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
   const [createdKey, setCreatedKey] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -51,7 +53,13 @@ export default function DeveloperPage() {
   }, [meta]);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (!canView) {
+      setKeysLoading(false);
+      return;
+    }
+
+    setKeysLoading(true);
+    setLoadError('');
     try {
       const headers = getAdminAuthHeaders();
       const [metaRes, keysRes] = await Promise.all([
@@ -65,13 +73,15 @@ export default function DeveloperPage() {
       if (!metaRes.ok || !metaJson?.ok) throw new Error(metaJson?.message || 'Failed to load developer metadata');
       if (!keysRes.ok || !keysJson?.ok) throw new Error(keysJson?.message || 'Failed to load API keys');
       setMeta(metaJson.data);
-      setKeys(keysJson.data || []);
+      setKeys(Array.isArray(keysJson.data) ? keysJson.data : []);
     } catch (err) {
-      toast.error(err?.message || 'Unable to load developer settings.');
+      const message = err?.message || 'Unable to load developer settings.';
+      setLoadError(message);
+      toast.error(message);
     } finally {
-      setLoading(false);
+      setKeysLoading(false);
     }
-  }, [toast]);
+  }, [canView, toast]);
 
   useEffect(() => {
     loadData();
@@ -185,12 +195,24 @@ export default function DeveloperPage() {
         ]}
       />
 
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <Spinner size={32} />
-        </div>
+      {!canView ? (
+        <Card title="Access denied">
+          <p className="text-sm text-navy-600">
+            You do not have permission to view developer tools. Ask an administrator to grant
+            {' '}
+            <code className="rounded bg-navy-50 px-1.5 py-0.5">developer.view</code>
+            {' '}
+            in Access Control.
+          </p>
+        </Card>
       ) : (
         <>
+          {loadError && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {loadError}
+            </div>
+          )}
+
           <Card title="External API" subtitle="Share read-only inventory data with other systems">
             <div className="space-y-4 text-sm text-navy-700">
               <p>
@@ -262,6 +284,12 @@ export default function DeveloperPage() {
           </Card>
 
           <Card title="API keys" subtitle={canManage ? 'Create credentials for external systems' : 'View-only access'}>
+            {keysLoading ? (
+              <div className="flex justify-center py-10">
+                <Spinner size={32} className="text-cyan-600" />
+              </div>
+            ) : (
+              <>
             {canManage && (
               <form onSubmit={handleCreate} className="mb-6 space-y-4 rounded-xl border border-navy-100 bg-navy-50/40 p-4">
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -324,7 +352,10 @@ export default function DeveloperPage() {
               <p className="text-sm text-navy-500">No API keys yet.</p>
             ) : (
               <div className="space-y-3">
-                {keys.map((key) => (
+                {keys.map((key) => {
+                  const scopes = Array.isArray(key.scopes) ? key.scopes : [];
+                  const ipWhitelist = Array.isArray(key.ipWhitelist) ? key.ipWhitelist : [];
+                  return (
                   <div key={key.id} className="rounded-xl border border-navy-100 bg-white p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
@@ -337,10 +368,10 @@ export default function DeveloperPage() {
                         </div>
                         <p className="mt-1 text-sm text-navy-600">Key prefix: <code>{key.maskedKey}</code></p>
                         <p className="mt-1 text-xs text-navy-500">
-                          Scopes: {key.scopes.join(', ') || '—'}
+                          Scopes: {scopes.join(', ') || '—'}
                         </p>
                         <p className="mt-1 text-xs text-navy-500">
-                          Whitelist: {key.ipWhitelist.join(', ') || '—'}
+                          Whitelist: {ipWhitelist.join(', ') || '—'}
                         </p>
                         <p className="mt-1 text-xs text-navy-500">
                           Last used: {formatDateTime(key.lastUsedAt)} · Created: {formatDateTime(key.createdAt)}
@@ -368,8 +399,11 @@ export default function DeveloperPage() {
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
+            )}
+              </>
             )}
           </Card>
         </>
