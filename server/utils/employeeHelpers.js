@@ -12,6 +12,7 @@ export function mapEmployeeRow(row = {}) {
     branchCode: row.branch_code || null,
     branchName: row.branch_name || null,
     status: row.status || 'active',
+    assetsCount: Number(row.assets_count ?? 0),
     updatedAt: row.updated_at,
   };
 }

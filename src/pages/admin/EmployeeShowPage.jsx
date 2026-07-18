@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Building2,
@@ -6,6 +6,7 @@ import {
   Package,
   Phone,
   Boxes,
+  Trash2,
 } from 'lucide-react';
 import {
   PageHeader,
@@ -13,11 +14,15 @@ import {
   DataTable,
   Spinner,
   StatusBadge,
+  ConfirmDialog,
 } from '../../components/ui';
 import RecordShowActions from '../../components/admin/RecordShowActions';
 import { useFetchRecord } from '../../hooks/useFetchRecord';
 import { useDeleteRecord } from '../../hooks/useDeleteRecord';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { getApiBase } from '../../utils/apiBase';
+import { getAdminAuthHeaders } from '../../utils/authHeaders';
 import { formatDate } from '../../utils/helpers';
 import {
   productStatusHtml,
@@ -25,53 +30,155 @@ import {
   qtyHtml,
   dateHtml,
   currencyHtml,
+  catalogRowActionsHtml,
 } from '../../utils/datatableHelpers';
+
+const API_BASE = getApiBase();
 
 function profileInitials(firstName, lastName) {
   const parts = [firstName, lastName].map((s) => String(s || '').trim()[0]).filter(Boolean);
   return parts.join('').toUpperCase() || '?';
 }
 
-const assignedItemColumns = [
-  {
-    key: 'sku',
-    label: 'S/N',
-    render: (_, row) => skuHtml(row.sku, row.name),
-  },
-  { key: 'category', label: 'Category' },
-  {
-    key: 'quantity',
-    label: 'Qty',
-    render: (_, row) => qtyHtml(row.quantity, row.reorderLevel),
-  },
-  {
-    key: 'unitPrice',
-    label: 'Price (K)',
-    render: (_, row) => currencyHtml(row.unitPrice),
-  },
-  {
-    key: 'status',
-    label: 'Status',
-    render: (_, row) => productStatusHtml(row.status),
-  },
-  {
-    key: 'updatedAt',
-    label: 'Updated',
-    render: (_, row) => dateHtml(row.updatedAt),
-  },
-];
-
 export default function EmployeeShowPage() {
   const { id } = useParams();
+  const toast = useToast();
   const { hasPermission } = useAuth();
-  const canManage = hasPermission('employees.manage');
+  const canManageEmployees = hasPermission('employees.manage');
+  const canManageItems = hasPermission('items.manage');
   const { record: profile, loading, error } = useFetchRecord('/admin/employees', id);
-  const deleteRecord = useDeleteRecord('/admin/employees', {
+  const deleteEmployee = useDeleteRecord('/admin/employees', {
     redirectTo: '/admin/employees',
     successMessage: 'Employee deleted.',
   });
+  const deleteItem = useDeleteRecord('/admin/items', {
+    successMessage: 'Product deleted.',
+  });
+
+  const tableRef = useRef(null);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const ajaxParams = useMemo(() => ({ employeeId: id }), [id]);
+  const selectedCount = selectedIds.size;
+
+  const reloadTable = useCallback(() => {
+    tableRef.current?.reload(false);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    tableRef.current?.clearSelection?.();
+  }, []);
+
+  const handleSelectionChange = useCallback((next) => {
+    setSelectedIds(next instanceof Set ? new Set(next) : new Set(next || []));
+  }, []);
+
+  const handleDeleteRequest = useCallback((itemId, label) => {
+    setDeleteTarget({ mode: 'single', id: itemId, label: label || 'this product' });
+  }, []);
+
+  const handleBulkDeleteRequest = useCallback(() => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    setDeleteTarget({
+      mode: 'bulk',
+      ids,
+      label: `${ids.length} selected product${ids.length === 1 ? '' : 's'}`,
+    });
+  }, [selectedIds]);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      if (deleteTarget.mode === 'bulk') {
+        const ids = deleteTarget.ids || [];
+        let deleted = 0;
+        let failed = 0;
+        for (const itemId of ids) {
+          const res = await fetch(`${API_BASE}/admin/items/${encodeURIComponent(itemId)}`, {
+            method: 'DELETE',
+            headers: getAdminAuthHeaders(),
+          });
+          const json = await res.json().catch(() => ({}));
+          if (res.ok && json?.ok) deleted += 1;
+          else failed += 1;
+        }
+
+        if (deleted && !failed) {
+          toast.success(`Deleted ${deleted} product${deleted === 1 ? '' : 's'}.`);
+        } else if (deleted && failed) {
+          toast.error(`Deleted ${deleted}, but ${failed} failed.`);
+        } else {
+          toast.error('Failed to delete selected products.');
+          return;
+        }
+
+        setDeleteTarget(null);
+        clearSelection();
+        reloadTable();
+        return;
+      }
+
+      if (!deleteTarget.id) return;
+      await deleteItem(deleteTarget.id);
+      setDeleteTarget(null);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(String(deleteTarget.id));
+        return next;
+      });
+      reloadTable();
+    } catch {
+      // Toast handled in hook / above; keep dialog open on failure.
+    } finally {
+      setDeleting(false);
+    }
+  }, [clearSelection, deleteItem, deleteTarget, reloadTable, toast]);
+
+  const assignedItemColumns = useMemo(() => [
+    {
+      key: 'sku',
+      label: 'S/N',
+      render: (_, row) => skuHtml(row.sku, row.name),
+    },
+    { key: 'category', label: 'Category' },
+    {
+      key: 'quantity',
+      label: 'Qty',
+      render: (_, row) => qtyHtml(row.quantity, row.reorderLevel),
+    },
+    {
+      key: 'unitPrice',
+      label: 'Price (K)',
+      render: (_, row) => currencyHtml(row.unitPrice),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (_, row) => productStatusHtml(row.status),
+    },
+    {
+      key: 'updatedAt',
+      label: 'Updated',
+      render: (_, row) => dateHtml(row.updatedAt),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      orderable: false,
+      sortable: false,
+      className: 'dt-right',
+      render: (_, row) => catalogRowActionsHtml('/admin/items', row, {
+        canManage: canManageItems,
+        canDelete: canManageItems,
+        deleteLabel: row.sku || row.name,
+      }),
+    },
+  ], [canManageItems]);
 
   return (
     <div>
@@ -87,8 +194,8 @@ export default function EmployeeShowPage() {
           <RecordShowActions
             backTo="/admin/employees"
             backLabel="Back to employees"
-            editTo={canManage && id ? `/admin/employees/${id}/edit` : undefined}
-            onDelete={canManage && id ? () => deleteRecord(id) : undefined}
+            editTo={canManageEmployees && id ? `/admin/employees/${id}/edit` : undefined}
+            onDelete={canManageEmployees && id ? () => deleteEmployee(id) : undefined}
             deleteTitle="Delete employee"
             deleteMessage={`Delete ${profile?.fullName || 'this employee'}? Assigned products will be unlinked.`}
           />
@@ -239,8 +346,31 @@ export default function EmployeeShowPage() {
             title="Assigned inventory"
             subtitle="Products linked to this employee"
             noPadding
+            actions={canManageItems && selectedCount > 0 ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-navy-500">
+                  {selectedCount} selected
+                </span>
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-navy-600 hover:bg-navy-100"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkDeleteRequest}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-red-500"
+                >
+                  <Trash2 size={13} />
+                  Delete
+                </button>
+              </div>
+            ) : null}
           >
             <DataTable
+              ref={tableRef}
               columns={assignedItemColumns}
               serverSide
               ajaxUrl="/admin/items"
@@ -248,11 +378,28 @@ export default function EmployeeShowPage() {
               pageLength={10}
               emptyTitle="No products assigned to this employee"
               getRowHref={(row) => `/admin/items/${row.id}`}
-              tableKey={`employee-items-${id}`}
+              onRowDelete={canManageItems ? handleDeleteRequest : undefined}
+              selectable={canManageItems ? {
+                idKey: 'id',
+                selectedIds,
+                onSelectionChange: handleSelectionChange,
+                disabled: deleting,
+              } : null}
+              tableKey={`employee-items-${id}-${canManageItems ? 'manage' : 'view'}`}
             />
           </Card>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        onConfirm={handleDeleteConfirm}
+        title={deleteTarget?.mode === 'bulk' ? 'Delete selected products' : 'Delete product'}
+        message={`Delete ${deleteTarget?.label || 'this product'}? This cannot be undone.`}
+        confirmLabel="Delete"
+        loading={deleting}
+      />
     </div>
   );
 }

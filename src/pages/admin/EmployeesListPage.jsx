@@ -1,13 +1,13 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PlusCircle } from 'lucide-react';
 import {
   PageHeader,
   DataTable,
   Card,
-  ListSearchFilters,
-  emptySearchFilters,
   ConfirmDialog,
+  DynamicListFilters,
+  TableActionsMenu,
 } from '../../components/ui';
 import {
   branchCodeHtml,
@@ -15,65 +15,99 @@ import {
   contactHtml,
   dateHtml,
   employeeStatusHtml,
+  qtyHtml,
   textHtml,
 } from '../../utils/datatableHelpers';
 import { useAuth } from '../../context/AuthContext';
-import { useDeleteRecord } from '../../hooks/useDeleteRecord';
+import { useAdminTablePage } from '../../hooks/useAdminTablePage';
+import {
+  EMPLOYEE_FILTER_FIELDS,
+  buildBranchOptions,
+  buildInitialFilters,
+  buildListExportParams,
+} from '../../config/adminListPageConfig';
+import { getApiBase } from '../../utils/apiBase';
+import { getAdminAuthHeaders } from '../../utils/authHeaders';
+import { useToast } from '../../context/ToastContext';
+
+const API_BASE = getApiBase();
 
 export default function EmployeesListPage() {
+  const toast = useToast();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('employees.manage');
+  const canView = hasPermission('employees.view');
   const [searchParams] = useSearchParams();
-  const statusFilter = searchParams.get('status') || '';
-  const tableRef = useRef(null);
-  const [filters, setFilters] = useState(emptySearchFilters);
-  const [appliedFilters, setAppliedFilters] = useState(emptySearchFilters);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const statusFromUrl = searchParams.get('status') || '';
+  const [branches, setBranches] = useState([]);
+  const [filters, setFilters] = useState(() => buildInitialFilters(EMPLOYEE_FILTER_FIELDS, { status: statusFromUrl }));
+  const [appliedFilters, setAppliedFilters] = useState(() => buildInitialFilters(EMPLOYEE_FILTER_FIELDS, { status: statusFromUrl }));
 
-  const pageTitle = useMemo(() => {
-    if (statusFilter === 'inactive') return 'Inactive Employees';
-    if (statusFilter === 'active') return 'Active Employees';
-    return 'Employees';
-  }, [statusFilter]);
-
-  const reloadTable = useCallback(() => {
-    tableRef.current?.reload(false);
-  }, []);
-
-  const deleteRecord = useDeleteRecord('/admin/employees', {
-    successMessage: 'Employee deleted.',
+  const {
+    tableRef,
+    selectedCount,
+    clearSelection,
+    deleting,
+    updatingStatus,
+    busy,
+    deleteTarget,
+    statusTarget,
+    setDeleteTarget,
+    setStatusTarget,
+    handleDeleteRequest,
+    handleDeleteConfirm,
+    handleStatusConfirm,
+    buildTableActions,
+    selectable,
+  } = useAdminTablePage({
+    canView,
+    canManage,
+    exportPath: '/admin/employees/export',
+    exportFilename: 'employees',
+    buildExportParams: (nextFilters, selectedIds) => buildListExportParams(nextFilters, selectedIds),
+    bulkDeletePath: '/admin/employees/bulk-delete',
+    bulkStatusPath: '/admin/employees/bulk-status',
+    singleDeletePath: '/admin/employees',
+    entityLabel: 'employee',
+    entityLabelPlural: 'employees',
+    singleDeleteSuccessMessage: 'Employee deleted.',
   });
 
-  const handleDeleteRequest = useCallback((id, label) => {
-    setDeleteTarget({ id, label: label || 'this employee' });
-  }, []);
+  useEffect(() => {
+    const next = buildInitialFilters(EMPLOYEE_FILTER_FIELDS, { status: statusFromUrl });
+    setFilters(next);
+    setAppliedFilters(next);
+    clearSelection();
+  }, [clearSelection, statusFromUrl]);
 
-  const handleDeleteConfirm = useCallback(async () => {
-    if (!deleteTarget?.id) return;
-    setDeleting(true);
-    try {
-      await deleteRecord(deleteTarget.id);
-      setDeleteTarget(null);
-      reloadTable();
-    } catch {
-      // Toast handled in hook; keep dialog open on failure.
-    } finally {
-      setDeleting(false);
-    }
-  }, [deleteRecord, deleteTarget, reloadTable]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/admin/branches?limit=100`, {
+          headers: getAdminAuthHeaders(),
+          cache: 'no-store',
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && json?.ok) {
+          setBranches(json.data || []);
+        }
+      } catch {
+        if (!cancelled) toast('Unable to load branches.', { type: 'error' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [toast]);
+
+  const pageTitle = useMemo(() => {
+    if (appliedFilters.status === 'inactive') return 'Inactive Employees';
+    if (appliedFilters.status === 'active') return 'Active Employees';
+    return 'Employees';
+  }, [appliedFilters.status]);
 
   const columns = useMemo(() => [
-    {
-      key: 'employeeCode',
-      label: 'Code',
-      render: (_, row) => textHtml(row.employeeCode),
-    },
-    {
-      key: 'fullName',
-      label: 'Name',
-      render: (_, row) => textHtml(row.fullName),
-    },
+    { key: 'employeeCode', label: 'Code', render: (_, row) => textHtml(row.employeeCode) },
+    { key: 'fullName', label: 'Name', render: (_, row) => textHtml(row.fullName) },
     { key: 'jobTitle', label: 'Role', render: (_, row) => textHtml(row.jobTitle) },
     {
       key: 'branchName',
@@ -85,16 +119,9 @@ export default function EmployeesListPage() {
       label: 'Contact',
       render: (_, row) => contactHtml(row.phone, row.email),
     },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (_, row) => employeeStatusHtml(row.status),
-    },
-    {
-      key: 'updatedAt',
-      label: 'Updated',
-      render: (_, row) => dateHtml(row.updatedAt),
-    },
+    { key: 'assetsCount', label: 'Assets', render: (_, row) => qtyHtml(row.assetsCount) },
+    { key: 'status', label: 'Status', render: (_, row) => employeeStatusHtml(row.status) },
+    { key: 'updatedAt', label: 'Updated', render: (_, row) => dateHtml(row.updatedAt) },
     {
       key: 'actions',
       label: 'Actions',
@@ -109,10 +136,18 @@ export default function EmployeesListPage() {
     },
   ], [canManage]);
 
-  const ajaxParams = useMemo(() => ({
-    search: appliedFilters.search,
-    status: statusFilter,
-  }), [appliedFilters.search, statusFilter]);
+  const ajaxParams = useMemo(() => ({ ...appliedFilters }), [appliedFilters]);
+  const filterOptions = useMemo(() => ({
+    branches: buildBranchOptions(branches),
+  }), [branches]);
+
+  const tableActions = useMemo(() => buildTableActions({
+    appliedFilters,
+    statusActions: [
+      { key: 'status-active', label: 'Mark active', status: 'active' },
+      { key: 'status-inactive', label: 'Mark inactive', status: 'inactive' },
+    ],
+  }), [appliedFilters, buildTableActions]);
 
   return (
     <div>
@@ -135,21 +170,29 @@ export default function EmployeesListPage() {
         ) : null}
       />
 
-      <ListSearchFilters
+      <DynamicListFilters
+        fields={EMPLOYEE_FILTER_FIELDS}
         values={filters}
         onChange={setFilters}
+        optionsMap={filterOptions}
         onApply={(next) => {
           setAppliedFilters(next);
+          clearSelection();
         }}
         onClear={() => {
-          const cleared = emptySearchFilters();
+          const cleared = buildInitialFilters(EMPLOYEE_FILTER_FIELDS);
           setFilters(cleared);
           setAppliedFilters(cleared);
+          clearSelection();
         }}
-        placeholder="Search code, name, role, branch, email, or phone..."
       />
 
-      <Card noPadding>
+      <Card
+        noPadding
+        actions={(canView || canManage) ? (
+          <TableActionsMenu selectedCount={selectedCount} disabled={busy} actions={tableActions} />
+        ) : null}
+      >
         <DataTable
           ref={tableRef}
           columns={columns}
@@ -160,7 +203,8 @@ export default function EmployeesListPage() {
           emptyTitle="No employees found"
           getRowHref={(row) => `/admin/employees/${row.id}`}
           onRowDelete={canManage ? handleDeleteRequest : undefined}
-          tableKey={`employees-${statusFilter}-${appliedFilters.search}-${canManage ? 'manage' : 'view'}`}
+          selectable={selectable}
+          tableKey={`employees-${Object.values(appliedFilters).join('-')}-${canManage ? 'manage' : 'view'}`}
         />
       </Card>
 
@@ -168,10 +212,22 @@ export default function EmployeesListPage() {
         isOpen={Boolean(deleteTarget)}
         onClose={() => !deleting && setDeleteTarget(null)}
         onConfirm={handleDeleteConfirm}
-        title="Delete employee"
-        message={`Delete ${deleteTarget?.label || 'this employee'}? Assigned products will be unlinked.`}
+        title={deleteTarget?.mode === 'bulk' ? 'Delete selected employees' : 'Delete employee'}
+        message={deleteTarget?.mode === 'bulk'
+          ? `Delete ${deleteTarget.count} selected employee(s)? Assigned products will be unlinked.`
+          : `Delete ${deleteTarget?.label || 'this employee'}? Assigned products will be unlinked.`}
         confirmLabel="Delete"
         loading={deleting}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(statusTarget)}
+        onClose={() => !updatingStatus && setStatusTarget(null)}
+        onConfirm={handleStatusConfirm}
+        title="Change employee status"
+        message={`Mark ${statusTarget?.count || 0} selected employee(s) as ${statusTarget?.label || statusTarget?.status || ''}?`}
+        confirmLabel="Update status"
+        loading={updatingStatus}
       />
     </div>
   );

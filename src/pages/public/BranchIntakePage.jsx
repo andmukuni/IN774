@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Building2,
   Check,
@@ -700,6 +700,7 @@ function DeviceCard({ title, icon: Icon, device, brands, onChange, onRemove, can
 
 export default function BranchIntakePage() {
   const { branchCode } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -716,6 +717,10 @@ export default function BranchIntakePage() {
   const [brands, setBrands] = useState([]);
   const [deviceTypes, setDeviceTypes] = useState([]);
   const [branch, setBranch] = useState(null);
+  const [reminderToken, setReminderToken] = useState('');
+  const [reminderMode, setReminderMode] = useState(false);
+  const [missingFields, setMissingFields] = useState([]);
+  const reminderResolvedRef = useRef(false);
   const [employee, setEmployee] = useState({
     firstName: '',
     lastName: '',
@@ -735,6 +740,38 @@ export default function BranchIntakePage() {
   });
 
   const brandName = (id) => brands.find((b) => b.id === id)?.name || '';
+  const needsProfileStep = !reminderMode || missingFields.includes('phone');
+  const needsDeviceStep = !reminderMode || missingFields.includes('assets');
+
+  const resolveReminderLink = useCallback(async (token, branchData) => {
+    const res = await fetch(`${API_BASE}/public/reminders/resolve?t=${encodeURIComponent(token)}`, {
+      cache: 'no-store',
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.ok) {
+      throw new Error(json?.message || 'This reminder link is invalid or has expired.');
+    }
+
+    const data = json.data || {};
+    setReminderToken(token);
+    setReminderMode(true);
+    setMissingFields(data.missingFields || []);
+    setBranch(data.branch || branchData || null);
+    setMatchedEmployee(data.employee || null);
+    setMyExistingDevices(data.devices || []);
+    setEmployee({
+      firstName: data.employee?.firstName || '',
+      lastName: data.employee?.lastName || '',
+      emailLocal: data.employee?.emailLocal || parseEmailLocal(data.employee?.email || ''),
+      phoneLocal: data.employee?.phoneLocal || '',
+      jobTitle: data.employee?.jobTitle || '',
+    });
+
+    const missing = data.missingFields || [];
+    if (missing.includes('phone')) setStep(1);
+    else if (missing.includes('assets')) setStep(2);
+    else setStep(1);
+  }, []);
 
   const buildSubmissionSummary = useCallback(() => ({
     branch: {
@@ -846,22 +883,28 @@ export default function BranchIntakePage() {
         await Promise.all([loadCatalog(), loadPublicSettings()]);
         if (branchCode) {
           const branchData = await loadBranchData(branchCode);
-          const storedContact = readStoredContact(branchCode);
-          if (storedContact && !cancelled) {
-            setEmployee((prev) => ({
-              ...prev,
-              emailLocal: storedContact.emailLocal || prev.emailLocal,
-              phoneLocal: storedContact.phoneLocal || prev.phoneLocal,
-            }));
-            if (branchData?.id && (storedContact.emailLocal || storedContact.phoneLocal)) {
-              try {
-                await lookupEmployee(branchData.id, storedContact);
-              } catch {
-                // Non-blocking on initial load — user can retry on Next
+          const token = String(searchParams.get('t') || '').trim();
+          if (token && !reminderResolvedRef.current) {
+            reminderResolvedRef.current = true;
+            await resolveReminderLink(token, branchData);
+          } else {
+            const storedContact = readStoredContact(branchCode);
+            if (storedContact && !cancelled) {
+              setEmployee((prev) => ({
+                ...prev,
+                emailLocal: storedContact.emailLocal || prev.emailLocal,
+                phoneLocal: storedContact.phoneLocal || prev.phoneLocal,
+              }));
+              if (branchData?.id && (storedContact.emailLocal || storedContact.phoneLocal)) {
+                try {
+                  await lookupEmployee(branchData.id, storedContact);
+                } catch {
+                  // Non-blocking on initial load — user can retry on Next
+                }
               }
             }
+            if (!cancelled) setStep(1);
           }
-          if (!cancelled) setStep(1);
         }
         const res = await fetch(`${API_BASE}/public/branches`);
         const json = await res.json().catch(() => ({}));
@@ -873,7 +916,7 @@ export default function BranchIntakePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [branchCode, loadBranchData, loadCatalog, loadPublicSettings, lookupEmployee]);
+  }, [branchCode, loadBranchData, loadCatalog, loadPublicSettings, lookupEmployee, resolveReminderLink, searchParams]);
 
   const deviceTypeOptions = useMemo(() => {
     const fromCatalog = deviceTypes.map((t) => ({
@@ -938,6 +981,12 @@ export default function BranchIntakePage() {
   const canNext = () => {
     if (step === 0) return Boolean(String(branch?.name || '').trim().length >= 2);
     if (step === 1) {
+      if (reminderMode && missingFields.includes('phone') && !missingFields.includes('assets')) {
+        return Boolean(employee.phoneLocal.trim());
+      }
+      if (reminderMode && missingFields.includes('phone')) {
+        return Boolean(employee.phoneLocal.trim());
+      }
       return Boolean(
         employee.firstName.trim()
         && employee.lastName.trim()
@@ -964,6 +1013,10 @@ export default function BranchIntakePage() {
       return;
     }
     if (step === 1) {
+      if (reminderMode && !missingFields.includes('phone') && missingFields.includes('assets')) {
+        setStep(2);
+        return;
+      }
       setLookupLoading(true);
       try {
         const resolvedBranch = branch?.id ? branch : await resolveBranchSelection();
@@ -974,12 +1027,18 @@ export default function BranchIntakePage() {
           emailLocal: employee.emailLocal,
           phoneLocal: employee.phoneLocal,
         });
-        await lookupEmployee(resolvedBranch.id);
+        if (!matchedEmployee?.id) {
+          await lookupEmployee(resolvedBranch.id);
+        }
       } catch (err) {
         setError(err?.message || 'Unable to look up your profile.');
         return;
       } finally {
         setLookupLoading(false);
+      }
+      if (reminderMode && missingFields.includes('phone') && !needsDeviceStep) {
+        setStep(4);
+        return;
       }
     }
     if (step === 4) {
@@ -999,7 +1058,13 @@ export default function BranchIntakePage() {
     setStep(2);
   };
 
-  const goBack = () => setStep((s) => Math.max(s - 1, 0));
+  const goBack = () => {
+    setStep((current) => {
+      if (current === 2 && reminderMode && !needsProfileStep) return 2;
+      if (current === 4 && reminderMode && needsProfileStep && !needsDeviceStep) return 1;
+      return Math.max(current - 1, reminderMode ? 1 : 0);
+    });
+  };
 
   const commitDraftDevice = () => {
     if (!draftDevice.type) {
@@ -1037,6 +1102,7 @@ export default function BranchIntakePage() {
       const payload = {
         branchId: resolvedBranch.id,
         employeeId: matchedEmployee?.id || null,
+        reminderToken: reminderToken || undefined,
         newEmployee: {
           firstName: employee.firstName,
           lastName: employee.lastName,
@@ -1184,26 +1250,31 @@ export default function BranchIntakePage() {
         </div>
       )}
 
-      {step === 1 && (
+      {step === 1 && needsProfileStep && (
         <div className="space-y-4">
           <p className="text-sm text-navy-600">
-            Enter your employee details. Use the same email or phone as before if you are adding more devices.
+            {reminderMode
+              ? 'We found your profile. Please complete the missing details below.'
+              : 'Enter your employee details. Use the same email or phone as before if you are adding more devices.'}
           </p>
           <div className="space-y-3">
-            <Field label="Job title">
-              <input
-                className={inputClass}
-                value={employee.jobTitle}
-                onChange={(e) => setEmployee((p) => ({ ...p, jobTitle: e.target.value }))}
-                placeholder="Manager, Teller"
-              />
-            </Field>
+            {!reminderMode && (
+              <Field label="Job title">
+                <input
+                  className={inputClass}
+                  value={employee.jobTitle}
+                  onChange={(e) => setEmployee((p) => ({ ...p, jobTitle: e.target.value }))}
+                  placeholder="Manager, Teller"
+                />
+              </Field>
+            )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="First name" required>
                 <input
                   className={inputClass}
                   value={employee.firstName}
                   onChange={(e) => setEmployee((p) => ({ ...p, firstName: e.target.value }))}
+                  readOnly={reminderMode}
                 />
               </Field>
               <Field label="Last name" required>
@@ -1211,49 +1282,57 @@ export default function BranchIntakePage() {
                   className={inputClass}
                   value={employee.lastName}
                   onChange={(e) => setEmployee((p) => ({ ...p, lastName: e.target.value }))}
+                  readOnly={reminderMode}
                 />
               </Field>
             </div>
-            <Field label="Email" required={!employee.phoneLocal.trim()}>
-              <div className="space-y-1">
+            {(!reminderMode || !missingFields.includes('phone') || employee.emailLocal) && (
+              <Field label="Email" required={!employee.phoneLocal.trim() && !reminderMode}>
+                <div className="space-y-1">
+                  <div className="flex min-w-0 items-stretch overflow-hidden rounded-xl border border-navy-200 bg-white focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/20">
+                    <input
+                      className="intake-form-input min-h-[48px] min-w-0 flex-1 border-0 bg-transparent px-4 py-3 text-[16px] leading-normal text-navy-900 placeholder:text-navy-400 focus:outline-none"
+                      value={employee.emailLocal}
+                      onChange={(e) => setEmployee((p) => ({
+                        ...p,
+                        emailLocal: parseEmailLocal(e.target.value),
+                      }))}
+                      placeholder="your.name"
+                      inputMode="email"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      readOnly={reminderMode}
+                    />
+                    <span className="flex min-h-[48px] shrink-0 items-center border-l border-navy-200 bg-navy-50 px-3 text-sm font-medium text-navy-600">
+                      @goodfellow.co.zm
+                    </span>
+                  </div>
+                  {!reminderMode && (
+                    <p className="text-xs text-navy-500">Enter your Goodfellow email or phone so we can find your existing devices.</p>
+                  )}
+                </div>
+              </Field>
+            )}
+            {(!reminderMode || missingFields.includes('phone')) && (
+              <Field label="Phone" required={reminderMode ? missingFields.includes('phone') : !employee.emailLocal.trim()}>
                 <div className="flex min-w-0 items-stretch overflow-hidden rounded-xl border border-navy-200 bg-white focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/20">
+                  <span className="flex min-h-[48px] shrink-0 items-center border-r border-navy-200 bg-navy-50 px-3 text-[16px] font-medium text-navy-600">
+                    +260
+                  </span>
                   <input
                     className="intake-form-input min-h-[48px] min-w-0 flex-1 border-0 bg-transparent px-4 py-3 text-[16px] leading-normal text-navy-900 placeholder:text-navy-400 focus:outline-none"
-                    value={employee.emailLocal}
+                    type="tel"
+                    value={employee.phoneLocal}
                     onChange={(e) => setEmployee((p) => ({
                       ...p,
-                      emailLocal: parseEmailLocal(e.target.value),
+                      phoneLocal: e.target.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 9),
                     }))}
-                    placeholder="your.name"
-                    inputMode="email"
-                    autoCapitalize="none"
-                    autoCorrect="off"
+                    placeholder="97 123 4567"
+                    inputMode="numeric"
                   />
-                  <span className="flex min-h-[48px] shrink-0 items-center border-l border-navy-200 bg-navy-50 px-3 text-sm font-medium text-navy-600">
-                    @goodfellow.co.zm
-                  </span>
                 </div>
-                <p className="text-xs text-navy-500">Enter your Goodfellow email or phone so we can find your existing devices.</p>
-              </div>
-            </Field>
-            <Field label="Phone" required={!employee.emailLocal.trim()}>
-              <div className="flex min-w-0 items-stretch overflow-hidden rounded-xl border border-navy-200 bg-white focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/20">
-                <span className="flex min-h-[48px] shrink-0 items-center border-r border-navy-200 bg-navy-50 px-3 text-[16px] font-medium text-navy-600">
-                  +260
-                </span>
-                <input
-                  className="intake-form-input min-h-[48px] min-w-0 flex-1 border-0 bg-transparent px-4 py-3 text-[16px] leading-normal text-navy-900 placeholder:text-navy-400 focus:outline-none"
-                  type="tel"
-                  value={employee.phoneLocal}
-                  onChange={(e) => setEmployee((p) => ({
-                    ...p,
-                    phoneLocal: e.target.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 9),
-                  }))}
-                  placeholder="97 123 4567"
-                  inputMode="numeric"
-                />
-              </div>
-            </Field>
+              </Field>
+            )}
           </div>
 
           {matchedEmployee && myExistingDevices.length > 0 && (
@@ -1266,7 +1345,7 @@ export default function BranchIntakePage() {
         </div>
       )}
 
-      {step === 2 && (
+      {step === 2 && needsDeviceStep && (
         <div className="space-y-4">
           <p className="text-sm text-navy-600">
             Add each device you use, if any. You can skip this step and continue without adding devices.

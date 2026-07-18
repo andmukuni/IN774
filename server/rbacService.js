@@ -151,6 +151,9 @@ export function resolveRouteAdminPermission(req) {
   if (path.startsWith('/admin/brands') || path.startsWith('/brands')) return method === 'GET' ? 'items.view' : 'items.manage';
   if (path.startsWith('/admin/product-types') || path.startsWith('/product-types')) return method === 'GET' ? 'items.view' : 'items.manage';
   if (path.startsWith('/admin/employees') || path.startsWith('/employees')) return method === 'GET' ? 'employees.view' : 'employees.manage';
+  if (path.startsWith('/admin/reminders') || path.startsWith('/reminders')) {
+    return method === 'GET' ? 'employees.view' : 'employees.manage';
+  }
   if (path === '/admin/dashboard/stats' || path === '/dashboard/stats') return 'dashboard.view';
 
   return 'dashboard.view';

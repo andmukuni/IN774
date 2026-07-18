@@ -19,6 +19,11 @@ import {
 } from '../utils/intakeHelpers.js';
 import { logProductRegistration, PRODUCT_EVENT_TYPES } from '../utils/productEventHelpers.js';
 import { getPublicSettings } from '../utils/systemSettingsHelpers.js';
+import {
+  ensureReminderTables,
+  markReminderSubmitted,
+  resolveReminderToken,
+} from '../utils/reminderHelpers.js';
 
 const intakeRateLimit = rateLimitByKey({
   windowMs: 60_000,
@@ -210,6 +215,25 @@ export function createPublicRouter() {
     }
   });
 
+  router.get('/reminders/resolve', intakeRateLimit, async (req, res) => {
+    try {
+      await ensureReminderTables();
+      const token = String(req.query.t || req.query.token || '').trim();
+      if (!token) {
+        return res.status(400).json({ ok: false, message: 'Reminder token is required.' });
+      }
+
+      const data = await resolveReminderToken(token, {
+        ipAddress: req.ip || req.socket?.remoteAddress || null,
+        userAgent: String(req.headers['user-agent'] || '').slice(0, 500),
+      });
+
+      res.json({ ok: true, data });
+    } catch (error) {
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
+    }
+  });
+
   router.post('/employees/lookup', intakeRateLimit, async (req, res) => {
     try {
       const publicSettings = await getPublicSettings();
@@ -273,6 +297,7 @@ export function createPublicRouter() {
         newEmployee,
         devices = [],
         printers = [],
+        reminderToken = '',
       } = req.body || {};
 
       const resolvedBranchId = String(branchId || '').trim();
@@ -329,6 +354,21 @@ export function createPublicRouter() {
         );
         if (!employee || employee.branch_id !== branch.id) {
           return res.status(400).json({ ok: false, message: 'Selected employee does not belong to this branch.' });
+        }
+
+        const emp = newEmployee || {};
+        const nextPhone = String(emp.phone || '').trim();
+        const nextEmail = String(emp.email || '').trim();
+        const nextJobTitle = String(emp.jobTitle || '').trim();
+        if (nextPhone || nextEmail || nextJobTitle) {
+          await pool.query(
+            `UPDATE employees
+             SET phone = CASE WHEN ? != '' THEN ? ELSE phone END,
+                 email = CASE WHEN ? != '' THEN ? ELSE email END,
+                 job_title = CASE WHEN ? != '' THEN ? ELSE job_title END
+             WHERE id = ?`,
+            [nextPhone, nextPhone, nextEmail, nextEmail, nextJobTitle, nextJobTitle, resolvedEmployeeId],
+          );
         }
       }
 
@@ -414,6 +454,12 @@ export function createPublicRouter() {
         });
 
         created.branchPrinters.push({ id: productId, sku, name, category: 'Printer' });
+      }
+
+      const token = String(reminderToken || '').trim();
+      if (token) {
+        await ensureReminderTables();
+        await markReminderSubmitted(token);
       }
 
       res.status(201).json({
