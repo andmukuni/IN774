@@ -27,18 +27,9 @@ import {
   buildExternalApiPostmanEnvironment,
 } from '../../../shared/postmanExternalApi.js';
 import { downloadJsonFile } from '../../utils/jsonDownload';
+import ExternalApiDocumentation from '../../components/admin/ExternalApiDocumentation';
 
 const API_BASE = getApiBase();
-
-const API_ENDPOINTS = [
-  { method: 'GET', path: '/health', scope: 'Public' },
-  { method: 'GET', path: '/assets', scope: 'assets.read' },
-  { method: 'GET', path: '/assets/:id', scope: 'assets.read' },
-  { method: 'GET', path: '/employees', scope: 'employees.read' },
-  { method: 'GET', path: '/employees/:id', scope: 'employees.read' },
-  { method: 'GET', path: '/employees/:id/assets', scope: 'employees.read' },
-  { method: 'GET', path: '/assignments', scope: 'assignments.read' },
-];
 
 const EMPTY_FORM = {
   name: '',
@@ -68,27 +59,6 @@ function SummaryTile({ icon: Icon, label, children }) {
         </div>
       </div>
     </div>
-  );
-}
-
-function MethodBadge({ method }) {
-  return (
-    <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-      {method}
-    </span>
-  );
-}
-
-function ScopeBadge({ scope }) {
-  if (scope === 'Public') {
-    return (
-      <span className="inline-flex rounded-md bg-navy-50 px-2 py-0.5 text-[11px] font-medium text-navy-600">
-        Public
-      </span>
-    );
-  }
-  return (
-    <code className="rounded bg-navy-50 px-1.5 py-0.5 text-[11px] text-navy-700">{scope}</code>
   );
 }
 
@@ -358,56 +328,42 @@ export default function DeveloperPage() {
             <div className="space-y-6 xl:col-span-7 order-2 xl:order-1">
               <Card
                 title="Quick start"
-                subtitle="Copy a sample request or import the Postman files"
+                subtitle="Copy a sample request to test the API"
               >
-                <div className="space-y-4">
-                  <pre className="overflow-x-auto rounded-xl bg-navy-900 p-4 text-xs leading-relaxed text-cyan-100">{exampleCurl}</pre>
-                  <div className="flex flex-wrap gap-2 xl:hidden">
-                    <button
-                      type="button"
-                      onClick={downloadPostmanCollection}
-                      className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50"
-                    >
-                      <Download size={16} />
-                      Download collection
-                    </button>
-                    <button
-                      type="button"
-                      onClick={downloadPostmanEnvironment}
-                      className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50"
-                    >
-                      <Download size={16} />
-                      Download environment
-                    </button>
-                  </div>
+                <pre className="overflow-x-auto rounded-xl bg-navy-900 p-4 text-xs leading-relaxed text-cyan-100">{exampleCurl}</pre>
+              </Card>
+
+              <Card
+                title="Postman"
+                subtitle="Import ready-made files to test all endpoints"
+              >
+                <p className="mb-4 text-sm text-navy-600">
+                  Download both files, import them into Postman, select the environment, and set your
+                  <code className="mx-1 rounded bg-navy-50 px-1.5 py-0.5">apiKey</code>
+                  variable before sending requests.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={downloadPostmanCollection}
+                    className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-700 hover:bg-navy-50"
+                  >
+                    <Download size={16} />
+                    Download collection
+                  </button>
+                  <button
+                    type="button"
+                    onClick={downloadPostmanEnvironment}
+                    className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-700 hover:bg-navy-50"
+                  >
+                    <Download size={16} />
+                    Download environment
+                  </button>
                 </div>
               </Card>
 
-              <Card title="Endpoints" subtitle="Read-only external API routes">
-                <div className="overflow-x-auto rounded-xl border border-navy-100">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="bg-navy-50 text-navy-500">
-                      <tr>
-                        <th className="px-4 py-2.5 font-medium">Method</th>
-                        <th className="px-4 py-2.5 font-medium">Path</th>
-                        <th className="px-4 py-2.5 font-medium">Scope</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-navy-100">
-                      {API_ENDPOINTS.map((endpoint) => (
-                        <tr key={`${endpoint.method}-${endpoint.path}`} className="hover:bg-navy-50/60">
-                          <td className="px-4 py-2.5">
-                            <MethodBadge method={endpoint.method} />
-                          </td>
-                          <td className="px-4 py-2.5 font-mono text-xs text-navy-800">{endpoint.path}</td>
-                          <td className="px-4 py-2.5">
-                            <ScopeBadge scope={endpoint.scope} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <Card title="API documentation" subtitle="Endpoints, parameters, and response examples">
+                <ExternalApiDocumentation baseUrl={apiBaseUrl} />
               </Card>
 
               <Card
@@ -552,6 +508,8 @@ export default function DeveloperPage() {
                                       </p>
                                       <p>
                                         <span className="font-medium text-navy-600">Last used:</span> {formatDateTime(key.lastUsedAt)}
+                                        {' · '}
+                                        <span className="font-medium text-navy-600">Created:</span> {formatDateTime(key.createdAt)}
                                       </p>
                                     </div>
 
