@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Code2, Copy, KeyRound, PlusCircle, Trash2 } from 'lucide-react';
+import { Code2, Copy, Download, KeyRound, PlusCircle, Trash2 } from 'lucide-react';
 import {
   PageHeader,
   Card,
@@ -12,6 +12,11 @@ import { useAuth } from '../../context/AuthContext';
 import { getApiBase } from '../../utils/apiBase';
 import { getAdminAuthHeaders } from '../../utils/authHeaders';
 import { EXTERNAL_API_SCOPES } from '../../../shared/externalApiScopes.js';
+import {
+  buildExternalApiPostmanCollection,
+  buildExternalApiPostmanEnvironment,
+} from '../../../shared/postmanExternalApi.js';
+import { downloadJsonFile } from '../../utils/jsonDownload';
 
 const API_BASE = getApiBase();
 
@@ -184,6 +189,22 @@ export default function DeveloperPage() {
   const exampleCurl = `curl -s "${apiBaseUrl}/assets?limit=10" \\
   -H "Authorization: Bearer YOUR_API_KEY"`;
 
+  const downloadPostmanCollection = () => {
+    downloadJsonFile(
+      'gfl-inventory-external-api.postman_collection.json',
+      buildExternalApiPostmanCollection(apiBaseUrl),
+    );
+    toast.success('Postman collection downloaded.');
+  };
+
+  const downloadPostmanEnvironment = () => {
+    downloadJsonFile(
+      'gfl-inventory-external-api.postman_environment.json',
+      buildExternalApiPostmanEnvironment(apiBaseUrl),
+    );
+    toast.success('Postman environment downloaded.');
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -270,6 +291,32 @@ export default function DeveloperPage() {
               <div>
                 <p className="font-medium text-navy-900 mb-2">Example</p>
                 <pre className="overflow-x-auto rounded-xl bg-navy-900 p-4 text-xs text-cyan-100">{exampleCurl}</pre>
+              </div>
+
+              <div>
+                <p className="font-medium text-navy-900 mb-2">Postman</p>
+                <p className="mb-3">
+                  Import these files into Postman to test all external API endpoints. Set your API key in the
+                  environment after importing.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={downloadPostmanCollection}
+                    className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-700 hover:bg-navy-50"
+                  >
+                    <Download size={16} />
+                    Download collection
+                  </button>
+                  <button
+                    type="button"
+                    onClick={downloadPostmanEnvironment}
+                    className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-700 hover:bg-navy-50"
+                  >
+                    <Download size={16} />
+                    Download environment
+                  </button>
+                </div>
               </div>
 
               <div>
