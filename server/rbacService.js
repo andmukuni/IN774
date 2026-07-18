@@ -140,16 +140,18 @@ export function resolveRouteAdminPermission(req) {
   const path = String(req.path || '');
   const method = String(req.method || '').toUpperCase();
 
-  if (path.startsWith('/api/admin/rbac')) return 'rbac.manage';
-  if (path.startsWith('/api/admin/settings')) return 'settings.manage';
-  if (path.startsWith('/api/settings')) return 'settings.manage';
-  if (path.startsWith('/api/admin/users')) return method === 'GET' ? 'users.view' : 'users.manage';
-  if (path.startsWith('/api/admin/items')) return method === 'GET' ? 'items.view' : 'items.manage';
-  if (path.startsWith('/api/admin/branches')) return method === 'GET' ? 'branches.view' : 'branches.manage';
-  if (path.startsWith('/api/admin/brands')) return method === 'GET' ? 'items.view' : 'items.manage';
-  if (path.startsWith('/api/admin/product-types')) return method === 'GET' ? 'items.view' : 'items.manage';
-  if (path.startsWith('/api/admin/employees')) return method === 'GET' ? 'employees.view' : 'employees.manage';
-  if (path === '/api/admin/dashboard/stats') return 'dashboard.view';
+  if (path.startsWith('/admin/developer') || path.startsWith('/developer')) {
+    return method === 'GET' ? 'developer.view' : 'developer.manage';
+  }
+  if (path.startsWith('/admin/rbac') || path.startsWith('/rbac')) return 'rbac.manage';
+  if (path.startsWith('/admin/settings') || path.startsWith('/settings')) return 'settings.manage';
+  if (path.startsWith('/admin/users') || path.startsWith('/users')) return method === 'GET' ? 'users.view' : 'users.manage';
+  if (path.startsWith('/admin/items') || path.startsWith('/items')) return method === 'GET' ? 'items.view' : 'items.manage';
+  if (path.startsWith('/admin/branches') || path.startsWith('/branches')) return method === 'GET' ? 'branches.view' : 'branches.manage';
+  if (path.startsWith('/admin/brands') || path.startsWith('/brands')) return method === 'GET' ? 'items.view' : 'items.manage';
+  if (path.startsWith('/admin/product-types') || path.startsWith('/product-types')) return method === 'GET' ? 'items.view' : 'items.manage';
+  if (path.startsWith('/admin/employees') || path.startsWith('/employees')) return method === 'GET' ? 'employees.view' : 'employees.manage';
+  if (path === '/admin/dashboard/stats' || path === '/dashboard/stats') return 'dashboard.view';
 
   return 'dashboard.view';
 }

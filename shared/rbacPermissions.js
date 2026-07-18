@@ -16,6 +16,8 @@ export const ADMIN_PERMISSIONS = [
   { key: 'users.manage', name: 'Manage users', group: 'Users' },
   { key: 'settings.manage', name: 'Manage system settings', group: 'System' },
   { key: 'rbac.manage', name: 'Manage roles & permissions', group: 'System' },
+  { key: 'developer.view', name: 'View developer tools', group: 'Developer' },
+  { key: 'developer.manage', name: 'Manage external API keys', group: 'Developer' },
 ];
 
 export const ALL_PERMISSION_KEYS = ADMIN_PERMISSIONS.map((p) => p.key);
@@ -61,6 +63,8 @@ export const NAV_PERMISSION_MAP = {
   users: 'users.view',
   settings: 'settings.manage',
   'access-control': 'rbac.manage',
+  developer: 'developer.view',
+  'developer-api': 'developer.manage',
 };
 
 export function permissionMatches(have = [], need = '') {

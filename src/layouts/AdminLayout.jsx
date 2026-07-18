@@ -15,6 +15,7 @@ import {
   UserRound,
   BadgeCheck,
   ExternalLink,
+  Code2,
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import AdminUserMenu from '../components/admin/AdminUserMenu';
@@ -43,8 +44,13 @@ const SYSTEM_NAVIGATION = [
   { key: 'access-control', name: 'Access Control', to: '/admin/access-control', icon: Shield },
 ];
 
+const DEVELOPER_NAVIGATION = [
+  { key: 'developer', name: 'API Integrations', to: '/admin/developer', icon: Code2 },
+];
+
 const NAV_GROUPS = [
   { key: 'inventory', label: 'Inventory', icon: Package, items: INVENTORY_NAVIGATION },
+  { key: 'developer', label: 'Developer', icon: Code2, items: DEVELOPER_NAVIGATION },
   { key: 'system', label: 'System', icon: Shield, items: SYSTEM_NAVIGATION },
 ];
 

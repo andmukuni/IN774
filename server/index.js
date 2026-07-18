@@ -16,6 +16,8 @@ import { createHealthRouter } from './routes/health.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createPublicRouter } from './routes/public.js';
+import { createExternalRouter } from './routes/external.js';
+import { createDeveloperRouter } from './routes/developer.js';
 import { loadBrandedIndexHtml } from './utils/htmlMetaHelpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -88,6 +90,7 @@ function isAdminProtectedRoute(req) {
   if (routePath.startsWith('/auth/')) return false;
   if (routePath === '/health' || routePath === '/db-test') return false;
   if (routePath.startsWith('/public/')) return false;
+  if (routePath.startsWith('/v1/')) return false;
 
   if (routePath.startsWith('/admin/')) return true;
   return false;
@@ -113,6 +116,8 @@ app.use('/api', (req, res, next) => {
 
 app.use('/api', createHealthRouter());
 app.use('/api/auth', createAuthRouter({ authService }));
+app.use('/api/v1', createExternalRouter());
+app.use('/api/admin/developer', createDeveloperRouter());
 app.use('/api/admin', createAdminRouter());
 app.use('/api/public', createPublicRouter());
 
