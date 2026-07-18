@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Code2, Copy, Download, KeyRound, PlusCircle, Trash2 } from 'lucide-react';
+import {
+  BookOpen,
+  Code2,
+  Copy,
+  Download,
+  Globe,
+  KeyRound,
+  PlusCircle,
+  Shield,
+  Trash2,
+} from 'lucide-react';
 import {
   PageHeader,
   Card,
@@ -20,6 +30,16 @@ import { downloadJsonFile } from '../../utils/jsonDownload';
 
 const API_BASE = getApiBase();
 
+const API_ENDPOINTS = [
+  { method: 'GET', path: '/health', scope: 'Public' },
+  { method: 'GET', path: '/assets', scope: 'assets.read' },
+  { method: 'GET', path: '/assets/:id', scope: 'assets.read' },
+  { method: 'GET', path: '/employees', scope: 'employees.read' },
+  { method: 'GET', path: '/employees/:id', scope: 'employees.read' },
+  { method: 'GET', path: '/employees/:id/assets', scope: 'employees.read' },
+  { method: 'GET', path: '/assignments', scope: 'assignments.read' },
+];
+
 const EMPTY_FORM = {
   name: '',
   ipWhitelist: '',
@@ -33,6 +53,43 @@ function formatDateTime(value) {
   } catch {
     return value;
   }
+}
+
+function SummaryTile({ icon: Icon, label, children }) {
+  return (
+    <div className="app-card rounded-xl border border-navy-100 bg-white p-4">
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg bg-cyan-50 p-2 text-cyan-600 shrink-0">
+          <Icon size={16} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-400">{label}</p>
+          <div className="mt-1 text-sm text-navy-900">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MethodBadge({ method }) {
+  return (
+    <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+      {method}
+    </span>
+  );
+}
+
+function ScopeBadge({ scope }) {
+  if (scope === 'Public') {
+    return (
+      <span className="inline-flex rounded-md bg-navy-50 px-2 py-0.5 text-[11px] font-medium text-navy-600">
+        Public
+      </span>
+    );
+  }
+  return (
+    <code className="rounded bg-navy-50 px-1.5 py-0.5 text-[11px] text-navy-700">{scope}</code>
+  );
 }
 
 export default function DeveloperPage() {
@@ -56,6 +113,11 @@ export default function DeveloperPage() {
     if (typeof window !== 'undefined') return `${window.location.origin}/api/v1`;
     return '/api/v1';
   }, [meta]);
+
+  const activeKeyCount = useMemo(
+    () => keys.filter((key) => key.status === 'active').length,
+    [keys],
+  );
 
   const loadData = useCallback(async () => {
     if (!canView) {
@@ -205,6 +267,27 @@ export default function DeveloperPage() {
     toast.success('Postman environment downloaded.');
   };
 
+  const postmanActions = canView ? (
+    <>
+      <button
+        type="button"
+        onClick={downloadPostmanCollection}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-navy-200 bg-white px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50"
+      >
+        <Download size={14} />
+        Collection
+      </button>
+      <button
+        type="button"
+        onClick={downloadPostmanEnvironment}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-navy-200 bg-white px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50"
+      >
+        <Download size={14} />
+        Environment
+      </button>
+    </>
+  ) : null;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -214,6 +297,7 @@ export default function DeveloperPage() {
           { label: 'Admin', to: '/admin' },
           { label: 'Developer' },
         ]}
+        actions={postmanActions}
       />
 
       {!canView ? (
@@ -234,225 +318,275 @@ export default function DeveloperPage() {
             </div>
           )}
 
-          <Card title="External API" subtitle="Share read-only inventory data with other systems">
-            <div className="space-y-4 text-sm text-navy-700">
-              <p>
-                Base URL: <code className="rounded bg-navy-50 px-2 py-1 text-navy-900">{apiBaseUrl}</code>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <SummaryTile icon={Globe} label="Base URL">
+              <div className="flex items-center gap-2">
+                <code className="truncate rounded bg-navy-50 px-2 py-1 text-xs text-navy-900">{apiBaseUrl}</code>
                 <button
                   type="button"
                   onClick={() => copyText(apiBaseUrl, 'Base URL copied')}
-                  className="ml-2 inline-flex items-center gap-1 text-cyan-700 hover:text-cyan-600"
+                  className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-cyan-700 hover:text-cyan-600"
                 >
-                  <Copy size={14} /> Copy
+                  <Copy size={12} />
+                  Copy
                 </button>
-              </p>
-
-              <div>
-                <p className="font-medium text-navy-900 mb-2">Authentication</p>
-                <ul className="list-disc space-y-1 pl-5">
-                  <li><code>Authorization: Bearer &lt;api-key&gt;</code></li>
-                  <li><code>X-Api-Key: &lt;api-key&gt;</code></li>
-                </ul>
               </div>
+            </SummaryTile>
 
-              <div>
-                <p className="font-medium text-navy-900 mb-2">Server whitelisting</p>
+            <SummaryTile icon={Shield} label="Authentication">
+              <div className="space-y-1 text-xs text-navy-600">
+                <p><code>Authorization: Bearer &lt;api-key&gt;</code></p>
+                <p><code>X-Api-Key: &lt;api-key&gt;</code></p>
+              </div>
+            </SummaryTile>
+
+            <SummaryTile icon={KeyRound} label="API keys">
+              {keysLoading ? (
+                <span className="text-navy-400">Loading…</span>
+              ) : (
                 <p>
-                  Each API key must include one or more allowed server IPs or CIDR ranges
-                  (for example <code>203.0.113.10</code> or <code>198.51.100.0/24</code>).
-                  Requests from other IPs are rejected.
+                  <span className="font-semibold">{activeKeyCount}</span>
+                  <span className="text-navy-500"> active · </span>
+                  <span className="font-semibold">{keys.length}</span>
+                  <span className="text-navy-500"> total</span>
                 </p>
-              </div>
+              )}
+            </SummaryTile>
+          </div>
 
-              <div>
-                <p className="font-medium text-navy-900 mb-2">Endpoints</p>
+          <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
+            <div className="space-y-6 xl:col-span-7 order-2 xl:order-1">
+              <Card
+                title="Quick start"
+                subtitle="Copy a sample request or import the Postman files"
+              >
+                <div className="space-y-4">
+                  <pre className="overflow-x-auto rounded-xl bg-navy-900 p-4 text-xs leading-relaxed text-cyan-100">{exampleCurl}</pre>
+                  <div className="flex flex-wrap gap-2 xl:hidden">
+                    <button
+                      type="button"
+                      onClick={downloadPostmanCollection}
+                      className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50"
+                    >
+                      <Download size={16} />
+                      Download collection
+                    </button>
+                    <button
+                      type="button"
+                      onClick={downloadPostmanEnvironment}
+                      className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50"
+                    >
+                      <Download size={16} />
+                      Download environment
+                    </button>
+                  </div>
+                </div>
+              </Card>
+
+              <Card title="Endpoints" subtitle="Read-only external API routes">
                 <div className="overflow-x-auto rounded-xl border border-navy-100">
                   <table className="min-w-full text-left text-sm">
                     <thead className="bg-navy-50 text-navy-500">
                       <tr>
-                        <th className="px-4 py-2 font-medium">Method</th>
-                        <th className="px-4 py-2 font-medium">Path</th>
-                        <th className="px-4 py-2 font-medium">Scope</th>
+                        <th className="px-4 py-2.5 font-medium">Method</th>
+                        <th className="px-4 py-2.5 font-medium">Path</th>
+                        <th className="px-4 py-2.5 font-medium">Scope</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-navy-100">
-                      <tr><td className="px-4 py-2">GET</td><td className="px-4 py-2">/health</td><td className="px-4 py-2">Public</td></tr>
-                      <tr><td className="px-4 py-2">GET</td><td className="px-4 py-2">/assets</td><td className="px-4 py-2">assets.read</td></tr>
-                      <tr><td className="px-4 py-2">GET</td><td className="px-4 py-2">/assets/:id</td><td className="px-4 py-2">assets.read</td></tr>
-                      <tr><td className="px-4 py-2">GET</td><td className="px-4 py-2">/employees</td><td className="px-4 py-2">employees.read</td></tr>
-                      <tr><td className="px-4 py-2">GET</td><td className="px-4 py-2">/employees/:id</td><td className="px-4 py-2">employees.read</td></tr>
-                      <tr><td className="px-4 py-2">GET</td><td className="px-4 py-2">/employees/:id/assets</td><td className="px-4 py-2">employees.read</td></tr>
-                      <tr><td className="px-4 py-2">GET</td><td className="px-4 py-2">/assignments</td><td className="px-4 py-2">assignments.read</td></tr>
+                      {API_ENDPOINTS.map((endpoint) => (
+                        <tr key={`${endpoint.method}-${endpoint.path}`} className="hover:bg-navy-50/60">
+                          <td className="px-4 py-2.5">
+                            <MethodBadge method={endpoint.method} />
+                          </td>
+                          <td className="px-4 py-2.5 font-mono text-xs text-navy-800">{endpoint.path}</td>
+                          <td className="px-4 py-2.5">
+                            <ScopeBadge scope={endpoint.scope} />
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </Card>
 
-              <div>
-                <p className="font-medium text-navy-900 mb-2">Example</p>
-                <pre className="overflow-x-auto rounded-xl bg-navy-900 p-4 text-xs text-cyan-100">{exampleCurl}</pre>
-              </div>
+              <Card
+                title="Integration notes"
+                subtitle="Security and data relationships"
+              >
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 text-sm text-navy-700">
+                  <div className="rounded-xl border border-navy-100 bg-navy-50/40 p-4">
+                    <div className="mb-2 flex items-center gap-2 text-navy-900">
+                      <Shield size={15} className="text-cyan-600" />
+                      <p className="font-medium">Server whitelisting</p>
+                    </div>
+                    <p>
+                      Each API key requires allowed server IPs or CIDR ranges
+                      (for example <code>203.0.113.10</code> or <code>198.51.100.0/24</code>).
+                      Requests from other IPs are rejected.
+                    </p>
+                  </div>
 
-              <div>
-                <p className="font-medium text-navy-900 mb-2">Postman</p>
-                <p className="mb-3">
-                  Import these files into Postman to test all external API endpoints. Set your API key in the
-                  environment after importing.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={downloadPostmanCollection}
-                    className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-700 hover:bg-navy-50"
-                  >
-                    <Download size={16} />
-                    Download collection
-                  </button>
-                  <button
-                    type="button"
-                    onClick={downloadPostmanEnvironment}
-                    className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-700 hover:bg-navy-50"
-                  >
-                    <Download size={16} />
-                    Download environment
-                  </button>
+                  <div className="rounded-xl border border-navy-100 bg-navy-50/40 p-4">
+                    <div className="mb-2 flex items-center gap-2 text-navy-900">
+                      <BookOpen size={15} className="text-cyan-600" />
+                      <p className="font-medium">Asset ↔ employee link</p>
+                    </div>
+                    <p>
+                      Assets include an <code>employee</code> object when assigned.
+                      Use <code>/assignments</code> for a flat list, or
+                      <code>/employees/:id/assets</code> for one employee&apos;s assets.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </Card>
+            </div>
 
-              <div>
-                <p className="font-medium text-navy-900 mb-2">Asset ↔ employee link</p>
-                <p>
-                  Assets include an <code>employee</code> object when assigned.
-                  Use <code>/assignments</code> for a flat asset-to-employee list, or
-                  <code>/employees/:id/assets</code> to fetch all assets for one employee.
-                </p>
+            <div className="xl:col-span-5 order-1 xl:order-2">
+              <div className="xl:sticky xl:top-[4.5rem]">
+                <Card
+                  title="API keys"
+                  subtitle={canManage ? 'Create credentials for external systems' : 'View-only access'}
+                >
+                  {keysLoading ? (
+                    <div className="flex justify-center py-10">
+                      <Spinner size={32} className="text-cyan-600" />
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      {canManage && (
+                        <form onSubmit={handleCreate} className="space-y-4 rounded-xl border border-cyan-100 bg-cyan-50/30 p-4">
+                          <p className="text-sm font-medium text-navy-900">Create new key</p>
+
+                          <label className="block">
+                            <span className="mb-1.5 block text-sm font-medium text-navy-700">Integration name</span>
+                            <input
+                              className="w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
+                              value={form.name}
+                              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                              placeholder="HR system, asset tracker..."
+                              required
+                            />
+                          </label>
+
+                          <label className="block">
+                            <span className="mb-1.5 block text-sm font-medium text-navy-700">Allowed server IPs / CIDR</span>
+                            <textarea
+                              className="min-h-[88px] w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
+                              value={form.ipWhitelist}
+                              onChange={(e) => setForm((p) => ({ ...p, ipWhitelist: e.target.value }))}
+                              placeholder={'203.0.113.10\n198.51.100.0/24'}
+                              required
+                            />
+                            <span className="mt-1 block text-xs text-navy-500">One IP or CIDR per line.</span>
+                          </label>
+
+                          <div>
+                            <p className="mb-2 text-sm font-medium text-navy-700">Scopes</p>
+                            <div className="space-y-2">
+                              {EXTERNAL_API_SCOPES.map((scope) => (
+                                <label key={scope.key} className="flex items-start gap-2 rounded-lg border border-navy-100 bg-white px-3 py-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={form.scopes.includes(scope.key)}
+                                    onChange={() => toggleScope(scope.key)}
+                                    className="mt-1"
+                                  />
+                                  <span>
+                                    <span className="block text-sm font-medium text-navy-900">{scope.name}</span>
+                                    <span className="block text-xs text-navy-500">{scope.key}</span>
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          <LoadingButton
+                            type="submit"
+                            loading={saving}
+                            loadingLabel="Creating..."
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-500"
+                          >
+                            <PlusCircle size={16} />
+                            Create API key
+                          </LoadingButton>
+                        </form>
+                      )}
+
+                      <div>
+                        <p className="mb-3 text-sm font-medium text-navy-900">
+                          {keys.length === 0 ? 'No keys yet' : `${keys.length} key${keys.length === 1 ? '' : 's'}`}
+                        </p>
+
+                        {keys.length === 0 ? (
+                          <p className="rounded-xl border border-dashed border-navy-200 bg-navy-50/40 px-4 py-6 text-center text-sm text-navy-500">
+                            Create a key to share inventory data with another system.
+                          </p>
+                        ) : (
+                          <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                            {keys.map((key) => {
+                              const scopes = Array.isArray(key.scopes) ? key.scopes : [];
+                              const ipWhitelist = Array.isArray(key.ipWhitelist) ? key.ipWhitelist : [];
+                              return (
+                                <div key={key.id} className="rounded-xl border border-navy-100 bg-white p-4">
+                                  <div className="flex flex-col gap-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <KeyRound size={15} className="shrink-0 text-cyan-600" />
+                                          <p className="truncate font-semibold text-navy-900">{key.name}</p>
+                                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${key.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-navy-100 text-navy-600'}`}>
+                                            {key.status}
+                                          </span>
+                                        </div>
+                                        <p className="mt-1 text-xs text-navy-600">
+                                          Prefix: <code>{key.maskedKey}</code>
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-1 text-xs text-navy-500">
+                                      <p><span className="font-medium text-navy-600">Scopes:</span> {scopes.join(', ') || '—'}</p>
+                                      <p className="break-words">
+                                        <span className="font-medium text-navy-600">Whitelist:</span> {ipWhitelist.join(', ') || '—'}
+                                      </p>
+                                      <p>
+                                        <span className="font-medium text-navy-600">Last used:</span> {formatDateTime(key.lastUsedAt)}
+                                      </p>
+                                    </div>
+
+                                    {canManage && (
+                                      <div className="flex flex-wrap gap-2 border-t border-navy-100 pt-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleToggleStatus(key)}
+                                          className="rounded-lg border border-navy-200 px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                                        >
+                                          {key.status === 'active' ? 'Deactivate' : 'Activate'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setDeleteTarget(key)}
+                                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+                                        >
+                                          <Trash2 size={14} />
+                                          Delete
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </Card>
               </div>
             </div>
-          </Card>
-
-          <Card title="API keys" subtitle={canManage ? 'Create credentials for external systems' : 'View-only access'}>
-            {keysLoading ? (
-              <div className="flex justify-center py-10">
-                <Spinner size={32} className="text-cyan-600" />
-              </div>
-            ) : (
-              <>
-            {canManage && (
-              <form onSubmit={handleCreate} className="mb-6 space-y-4 rounded-xl border border-navy-100 bg-navy-50/40 p-4">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1.5 block text-sm font-medium text-navy-700">Integration name</span>
-                    <input
-                      className="w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
-                      value={form.name}
-                      onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                      placeholder="HR system, asset tracker..."
-                      required
-                    />
-                  </label>
-                  <label className="block lg:col-span-2">
-                    <span className="mb-1.5 block text-sm font-medium text-navy-700">Allowed server IPs / CIDR</span>
-                    <textarea
-                      className="min-h-[96px] w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
-                      value={form.ipWhitelist}
-                      onChange={(e) => setForm((p) => ({ ...p, ipWhitelist: e.target.value }))}
-                      placeholder={'203.0.113.10\n198.51.100.0/24'}
-                      required
-                    />
-                    <span className="mt-1 block text-xs text-navy-500">One IP or CIDR per line. Required for every key.</span>
-                  </label>
-                </div>
-
-                <div>
-                  <p className="mb-2 text-sm font-medium text-navy-700">Scopes</p>
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                    {EXTERNAL_API_SCOPES.map((scope) => (
-                      <label key={scope.key} className="flex items-start gap-2 rounded-lg border border-navy-100 bg-white px-3 py-2">
-                        <input
-                          type="checkbox"
-                          checked={form.scopes.includes(scope.key)}
-                          onChange={() => toggleScope(scope.key)}
-                          className="mt-1"
-                        />
-                        <span>
-                          <span className="block text-sm font-medium text-navy-900">{scope.name}</span>
-                          <span className="block text-xs text-navy-500">{scope.key}</span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <LoadingButton
-                  type="submit"
-                  loading={saving}
-                  loadingLabel="Creating..."
-                  className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-500"
-                >
-                  <PlusCircle size={16} />
-                  Create API key
-                </LoadingButton>
-              </form>
-            )}
-
-            {keys.length === 0 ? (
-              <p className="text-sm text-navy-500">No API keys yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {keys.map((key) => {
-                  const scopes = Array.isArray(key.scopes) ? key.scopes : [];
-                  const ipWhitelist = Array.isArray(key.ipWhitelist) ? key.ipWhitelist : [];
-                  return (
-                  <div key={key.id} className="rounded-xl border border-navy-100 bg-white p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <KeyRound size={16} className="text-cyan-600" />
-                          <p className="font-semibold text-navy-900">{key.name}</p>
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${key.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-navy-100 text-navy-600'}`}>
-                            {key.status}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-sm text-navy-600">Key prefix: <code>{key.maskedKey}</code></p>
-                        <p className="mt-1 text-xs text-navy-500">
-                          Scopes: {scopes.join(', ') || '—'}
-                        </p>
-                        <p className="mt-1 text-xs text-navy-500">
-                          Whitelist: {ipWhitelist.join(', ') || '—'}
-                        </p>
-                        <p className="mt-1 text-xs text-navy-500">
-                          Last used: {formatDateTime(key.lastUsedAt)} · Created: {formatDateTime(key.createdAt)}
-                        </p>
-                      </div>
-
-                      {canManage && (
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleStatus(key)}
-                            className="rounded-lg border border-navy-200 px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50"
-                          >
-                            {key.status === 'active' ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(key)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 size={14} />
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  );
-                })}
-              </div>
-            )}
-              </>
-            )}
-          </Card>
+          </div>
         </>
       )}
 
