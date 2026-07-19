@@ -30,6 +30,23 @@ export const EXTERNAL_API_ERRORS = [
 
 export const EXTERNAL_API_ENDPOINT_DOCS = [
   {
+    id: 'ip-check',
+    method: 'GET',
+    path: '/ip-check',
+    scope: 'Any valid API key',
+    summary: 'Show the IP address the server sees for your request (use this to configure whitelisting).',
+    queryParams: [],
+    responseExample: {
+      ok: true,
+      data: {
+        clientIp: '203.0.113.10',
+        whitelisted: true,
+        keyPrefix: 'gfl_a14d4548',
+        whitelist: ['203.0.113.10'],
+      },
+    },
+  },
+  {
     id: 'health',
     method: 'GET',
     path: '/health',

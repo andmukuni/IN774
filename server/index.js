@@ -48,7 +48,7 @@ const serverOrigin = appUrl || undefined;
 
 const app = express();
 
-if (process.env.TRUST_PROXY === '1') {
+if (process.env.TRUST_PROXY === '1' || IS_PRODUCTION) {
   app.set('trust proxy', 1);
 }
 

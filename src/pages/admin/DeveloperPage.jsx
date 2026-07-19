@@ -379,7 +379,8 @@ export default function DeveloperPage() {
                     <p>
                       Each API key requires allowed server IPs or CIDR ranges
                       (for example <code>203.0.113.10</code> or <code>198.51.100.0/24</code>).
-                      Requests from other IPs are rejected.
+                      Requests from other IPs are rejected. Call
+                      <code>GET /api/v1/ip-check</code> with your API key to see the exact IP the server detects.
                     </p>
                   </div>
 

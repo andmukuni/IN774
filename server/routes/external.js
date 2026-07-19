@@ -2,7 +2,7 @@ import express from 'express';
 import pool from '../db.js';
 import { rateLimitByKey } from '../securityHelpers.js';
 import { parseTableQuery, buildPaginatedResponse } from '../utils/tableQuery.js';
-import { createExternalApiAuth } from '../middleware/externalApiAuth.js';
+import { createExternalApiAuth, createExternalIpCheckHandler } from '../middleware/externalApiAuth.js';
 import {
   mapExternalAsset,
   mapExternalAssignment,
@@ -32,6 +32,8 @@ export function createExternalRouter() {
   router.get('/health', (_req, res) => {
     res.json({ ok: true, service: 'gfl-external-api', version: 'v1' });
   });
+
+  router.get('/ip-check', createExternalIpCheckHandler());
 
   router.get('/assets', createExternalApiAuth('assets.read'), async (req, res) => {
     try {

@@ -278,15 +278,63 @@ function matchIpv4Cidr(clientIp, cidr) {
   return (ipInt & mask) === (networkInt & mask);
 }
 
-export function getClientIp(req) {
-  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  const raw = forwarded || req.ip || req.socket?.remoteAddress || '';
-  return raw.replace(/^::ffff:/, '');
+function normalizeIpAddress(value) {
+  return String(value || '').trim().replace(/^::ffff:/i, '');
+}
+
+function isPrivateOrLoopbackIp(ip) {
+  const normalized = normalizeIpAddress(ip);
+  if (!normalized) return true;
+  if (normalized === '127.0.0.1' || normalized === '::1' || normalized === 'localhost') return true;
+
+  const parts = normalized.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd');
+  }
+
+  if (parts[0] === 10) return true;
+  if (parts[0] === 127) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  return false;
+}
+
+function pickForwardedClientIp(headerValue = '') {
+  const candidates = String(headerValue || '')
+    .split(',')
+    .map((part) => normalizeIpAddress(part))
+    .filter(Boolean);
+
+  if (!candidates.length) return '';
+
+  const publicCandidate = candidates.find((candidate) => !isPrivateOrLoopbackIp(candidate));
+  return publicCandidate || candidates[0];
+}
+
+export function getClientIp(req, { trustProxy = false } = {}) {
+  if (trustProxy) {
+    const trustedHeaders = [
+      req.headers['cf-connecting-ip'],
+      req.headers['true-client-ip'],
+      req.headers['x-real-ip'],
+      req.headers['x-client-ip'],
+    ];
+
+    for (const headerValue of trustedHeaders) {
+      const candidate = normalizeIpAddress(headerValue);
+      if (candidate) return candidate;
+    }
+
+    const forwardedIp = pickForwardedClientIp(req.headers['x-forwarded-for']);
+    if (forwardedIp) return forwardedIp;
+  }
+
+  return normalizeIpAddress(req.ip || req.socket?.remoteAddress || '');
 }
 
 export function isIpAllowed(clientIp, whitelist = []) {
-  const ip = String(clientIp || '').trim();
-  const entries = (whitelist || []).map((value) => String(value).trim()).filter(Boolean);
+  const ip = normalizeIpAddress(clientIp);
+  const entries = (whitelist || []).map((value) => normalizeIpAddress(value)).filter(Boolean);
   if (!entries.length) return false;
   if (!ip) return false;
 

@@ -77,6 +77,9 @@ export function buildExternalApiPostmanCollection(baseUrl = '/api/v1') {
             description: 'Public health check. No API key required.',
             auth: { type: 'noauth' },
           }),
+          getItem('IP check', '{{baseUrl}}/ip-check', {
+            description: 'Returns the client IP seen by the server. Use this to configure API key whitelisting.',
+          }),
         ],
       },
       {
