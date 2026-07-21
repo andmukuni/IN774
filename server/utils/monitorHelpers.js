@@ -563,3 +563,66 @@ export async function pruneOldCheckResults() {
     [CHECK_RETENTION_DAYS],
   );
 }
+
+export async function seedMonitorTargets() {
+  const appUrl = String(process.env.MONITOR_SEED_APP_URL || 'https://inv774.goodfellowzm.com')
+    .trim()
+    .replace(/\/$/, '');
+
+  const [[httpExisting]] = await pool.query(
+    `SELECT id FROM monitor_targets
+     WHERE type = 'http'
+       AND (name = ? OR host_or_url LIKE ?)
+     LIMIT 1`,
+    ['APP Inventory', `${appUrl}%`],
+  );
+
+  if (!httpExisting) {
+    await createMonitorTarget({
+      name: 'APP Inventory',
+      type: 'http',
+      hostOrUrl: appUrl,
+      intervalSeconds: 300,
+      timeoutMs: 8000,
+      enabled: true,
+      allowPrivateNetwork: false,
+    });
+    console.log(`[monitor] Seeded HTTP target: APP Inventory (${appUrl})`);
+  }
+
+  const mysqlPassword = String(process.env.MONITOR_SEED_MYSQL_PASSWORD || '').trim();
+  if (!mysqlPassword) {
+    console.log('[monitor] MySQL seed skipped (set MONITOR_SEED_MYSQL_PASSWORD to seed database target).');
+    return;
+  }
+
+  const mysqlHost = String(process.env.MONITOR_SEED_MYSQL_HOST || '84.247.188.115').trim();
+  const mysqlPort = Number(process.env.MONITOR_SEED_MYSQL_PORT || 3624);
+  const mysqlUser = String(process.env.MONITOR_SEED_MYSQL_USER || 'mysql').trim();
+  const mysqlDb = String(process.env.MONITOR_SEED_MYSQL_DATABASE || 'default').trim();
+  const mysqlName = String(process.env.MONITOR_SEED_MYSQL_NAME || 'Production MySQL').trim();
+
+  const [[mysqlExisting]] = await pool.query(
+    `SELECT id FROM monitor_targets
+     WHERE type = 'mysql' AND host_or_url = ? AND port = ?
+     LIMIT 1`,
+    [mysqlHost, mysqlPort],
+  );
+
+  if (!mysqlExisting) {
+    await createMonitorTarget({
+      name: mysqlName,
+      type: 'mysql',
+      hostOrUrl: mysqlHost,
+      port: mysqlPort,
+      dbName: mysqlDb,
+      dbUser: mysqlUser,
+      dbPassword: mysqlPassword,
+      intervalSeconds: 300,
+      timeoutMs: 15000,
+      enabled: true,
+      allowPrivateNetwork: false,
+    });
+    console.log(`[monitor] Seeded MySQL target: ${mysqlName} (${mysqlHost}:${mysqlPort}/${mysqlDb})`);
+  }
+}

@@ -8,7 +8,7 @@ import { ensureProductEventsTable, backfillProductEvents } from './utils/product
 import { ensureSystemSettingsTable, seedSystemSettings } from './utils/systemSettingsHelpers.js';
 import { ensureApiKeysTable } from './utils/apiKeyHelpers.js';
 import { ensureReminderTables } from './utils/reminderHelpers.js';
-import { ensureMonitorTables } from './utils/monitorHelpers.js';
+import { ensureMonitorTables, seedMonitorTargets } from './utils/monitorHelpers.js';
 import { GOODFELLOW_BRANCHES } from './seed/goodfellowBranches.js';
 import { COMPUTER_BRANDS } from './seed/computerBrands.js';
 import { PRODUCT_TYPES } from './seed/productTypes.js';
@@ -347,4 +347,5 @@ export async function bootstrapDatabase() {
   await seedInventoryProducts();
   await backfillProductEvents(pool);
   await seedSystemSettings(pool);
+  await seedMonitorTargets();
 }
