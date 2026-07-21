@@ -583,6 +583,20 @@ export async function seedMonitorTargets() {
     envUrlKey: 'MONITOR_SEED_WEBSITE_URL',
   });
 
+  await seedHttpMonitorTarget({
+    name: 'App Loan System Kenac',
+    url: 'https://goodfellow.kenac.tech',
+    envUrlKey: 'MONITOR_SEED_KENAC_APP_URL',
+  });
+
+  await seedTcpMonitorTarget({
+    name: 'Kenac DB Server',
+    host: '',
+    port: 3306,
+    hostEnvKey: 'MONITOR_SEED_KENAC_DB_HOST',
+    portEnvKey: 'MONITOR_SEED_KENAC_DB_PORT',
+  });
+
   await seedMysqlMonitorTarget({
     name: 'Production MySQL',
     host: '84.247.188.115',
@@ -632,6 +646,43 @@ async function seedHttpMonitorTarget({ name, url, envUrlKey }) {
     allowPrivateNetwork: false,
   });
   console.log(`[monitor] Seeded HTTP target: ${name} (${targetUrl})`);
+}
+
+async function seedTcpMonitorTarget({
+  name,
+  host,
+  port,
+  hostEnvKey,
+  portEnvKey,
+}) {
+  const targetHost = String(process.env[hostEnvKey] || host || '').trim();
+  if (!targetHost) {
+    console.log(`[monitor] Skipped ${name} (set ${hostEnvKey}).`);
+    return;
+  }
+
+  const targetPort = Number(process.env[portEnvKey] || port);
+
+  const [[existing]] = await pool.query(
+    `SELECT id FROM monitor_targets
+     WHERE type = 'tcp' AND name = ?
+     LIMIT 1`,
+    [name],
+  );
+
+  if (existing) return;
+
+  await createMonitorTarget({
+    name,
+    type: 'tcp',
+    hostOrUrl: targetHost,
+    port: targetPort,
+    intervalSeconds: 300,
+    timeoutMs: 8000,
+    enabled: true,
+    allowPrivateNetwork: false,
+  });
+  console.log(`[monitor] Seeded TCP target: ${name} (${targetHost}:${targetPort})`);
 }
 
 async function seedMysqlMonitorTarget({
