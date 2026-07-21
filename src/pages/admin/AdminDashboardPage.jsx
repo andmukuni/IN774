@@ -5,12 +5,8 @@ import {
   PackageX,
   Wallet,
   Tags,
-  PlusCircle,
-  Settings,
-  Shield,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { PageHeader, AdminStatCard, Card, DataTable, Spinner } from '../../components/ui';
 import InventoryWelcomeCard from '../../components/admin/InventoryWelcomeCard';
 import MonitorDashboardKpis from '../../components/admin/MonitorDashboardKpis';
@@ -184,48 +180,6 @@ export default function AdminDashboardPage() {
               <AdminStatCard key={stat.label} animationDelay={nextDelay()} {...stat} />
             ))}
           </StatSection>
-
-          <Card title="Quick actions" className="mb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Link
-                to="/admin/items/new"
-                className="rounded-xl border border-navy-100 p-4 hover:border-cyan-300 hover:bg-cyan-50/50 transition-colors"
-              >
-                <p className="font-medium text-navy-900 flex items-center gap-2">
-                  <PlusCircle size={16} className="text-cyan-600" />
-                  Add product
-                </p>
-                <p className="text-xs text-navy-500 mt-1">Create a new inventory item</p>
-              </Link>
-              <Link
-                to="/admin/items"
-                className="rounded-xl border border-navy-100 p-4 hover:border-cyan-300 hover:bg-cyan-50/50 transition-colors"
-              >
-                <p className="font-medium text-navy-900">View products</p>
-                <p className="text-xs text-navy-500 mt-1">Browse full product catalog</p>
-              </Link>
-              <Link
-                to="/admin/settings"
-                className="rounded-xl border border-navy-100 p-4 hover:border-cyan-300 hover:bg-cyan-50/50 transition-colors"
-              >
-                <p className="font-medium text-navy-900 flex items-center gap-2">
-                  <Settings size={16} className="text-navy-400" />
-                  System settings
-                </p>
-                <p className="text-xs text-navy-500 mt-1">App configuration</p>
-              </Link>
-              <Link
-                to="/admin/access-control"
-                className="rounded-xl border border-navy-100 p-4 hover:border-cyan-300 hover:bg-cyan-50/50 transition-colors"
-              >
-                <p className="font-medium text-navy-900 flex items-center gap-2">
-                  <Shield size={16} className="text-navy-400" />
-                  Access control
-                </p>
-                <p className="text-xs text-navy-500 mt-1">Roles and permissions</p>
-              </Link>
-            </div>
-          </Card>
 
           <Card title="Recent products" subtitle="Latest updated items" noPadding>
             <DataTable
