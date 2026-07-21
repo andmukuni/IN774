@@ -19,6 +19,11 @@ export const EXTERNAL_API_SCOPES = [
     name: 'Report PC presence',
     description: 'Send heartbeat POSTs from Windows agents to report machine online status.',
   },
+  {
+    key: 'presence.enroll',
+    name: 'Enroll PC presence',
+    description: 'List branches, look up employees, and enroll/link PCs during Windows agent setup.',
+  },
 ];
 
 export const EXTERNAL_API_SCOPE_KEYS = EXTERNAL_API_SCOPES.map((s) => s.key);

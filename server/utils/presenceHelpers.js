@@ -97,9 +97,11 @@ async function findProductBySerial(serialNumber) {
   const serial = String(serialNumber || '').trim();
   if (!serial) return null;
   const [[row]] = await pool.query(
-    `SELECT id, employee_id, branch_id, sku, name
-     FROM products
-     WHERE sku = ? AND status != 'discontinued'
+    `SELECT p.id, p.employee_id, p.sku, p.name,
+            COALESCE(p.branch_id, e.branch_id) AS branch_id
+     FROM products p
+     LEFT JOIN employees e ON e.id = p.employee_id
+     WHERE p.sku = ? AND p.status != 'discontinued'
      LIMIT 1`,
     [serial],
   );

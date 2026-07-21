@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>GFL Presence Agent — Deployment Guide</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 20mm 16mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.5;
+      color: #1a2332;
+      margin: 0;
+      padding: 0;
+    }
+
+    .cover {
+      page-break-after: always;
+      min-height: 250mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 24mm 8mm;
+      border-bottom: 4px solid #0f4c81;
+    }
+
+    .cover .org {
+      font-size: 11pt;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #0f4c81;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .cover h1 {
+      font-size: 28pt;
+      line-height: 1.15;
+      margin: 0 0 16px;
+      color: #0b1f33;
+    }
+
+    .cover .subtitle {
+      font-size: 13pt;
+      color: #4a5568;
+      margin-bottom: 32px;
+      max-width: 85%;
+    }
+
+    .cover .meta {
+      margin-top: auto;
+      font-size: 10pt;
+      color: #64748b;
+    }
+
+    .cover .meta p { margin: 4px 0; }
+
+    h2 {
+      font-size: 15pt;
+      color: #0f4c81;
+      border-bottom: 2px solid #dbeafe;
+      padding-bottom: 6px;
+      margin: 28px 0 14px;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 11.5pt;
+      color: #1e3a5f;
+      margin: 18px 0 8px;
+      page-break-after: avoid;
+    }
+
+    p { margin: 0 0 10px; }
+
+    ul, ol { margin: 0 0 12px; padding-left: 22px; }
+    li { margin-bottom: 4px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px;
+      font-size: 9.5pt;
+      page-break-inside: avoid;
+    }
+
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 7px 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #eff6ff;
+      color: #0f4c81;
+      font-weight: 700;
+    }
+
+    tr:nth-child(even) td { background: #f8fafc; }
+
+    pre, code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 8.8pt;
+    }
+
+    pre {
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-left: 4px solid #0f4c81;
+      padding: 10px 12px;
+      overflow-x: auto;
+      margin: 8px 0 14px;
+      page-break-inside: avoid;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    code {
+      background: #f1f5f9;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    .callout {
+      background: #eff6ff;
+      border: 1px solid #93c5fd;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin: 10px 0 14px;
+      page-break-inside: avoid;
+    }
+
+    .callout strong { color: #0f4c81; }
+
+    .diagram {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      padding: 12px;
+      font-family: Consolas, monospace;
+      font-size: 8.5pt;
+      line-height: 1.35;
+      margin: 10px 0 14px;
+      page-break-inside: avoid;
+      white-space: pre;
+    }
+
+    .checklist {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .checklist li {
+      padding: 6px 0 6px 28px;
+      position: relative;
+      border-bottom: 1px dotted #e2e8f0;
+    }
+
+    .checklist li::before {
+      content: "☐";
+      position: absolute;
+      left: 4px;
+      color: #0f4c81;
+      font-size: 12pt;
+    }
+
+    .step {
+      counter-increment: step;
+      margin-bottom: 14px;
+      page-break-inside: avoid;
+    }
+
+    .step-num {
+      display: inline-block;
+      background: #0f4c81;
+      color: white;
+      width: 22px;
+      height: 22px;
+      line-height: 22px;
+      text-align: center;
+      border-radius: 50%;
+      font-size: 9pt;
+      font-weight: 700;
+      margin-right: 8px;
+    }
+
+    .footer-note {
+      margin-top: 24px;
+      padding-top: 10px;
+      border-top: 1px solid #cbd5e1;
+      font-size: 9pt;
+      color: #64748b;
+      text-align: center;
+    }
+
+    .section { page-break-inside: avoid; }
+
+    .page-break { page-break-before: always; }
+  </style>
+</head>
+<body>
+
+  <section class="cover">
+    <div class="org">Goodfellow IT · FormGFL</div>
+    <h1>GFL Presence Agent<br>Deployment Guide</h1>
+    <p class="subtitle">
+      Step-by-step instructions for IT staff to monitor which Windows computers
+      are online across your organization using the FormGFL inventory system.
+    </p>
+    <div class="meta">
+      <p><strong>Document version:</strong> 1.0</p>
+      <p><strong>Agent version:</strong> 1.0.0</p>
+      <p><strong>Audience:</strong> IT administrators, system deployers</p>
+    </div>
+  </section>
+
+  <h2>1. Overview</h2>
+  <p>
+    The <strong>GFL Presence Agent</strong> is a small Windows program that runs as a background
+    service on each PC. It sends a short heartbeat to your FormGFL server so IT can see which
+    machines are turned on, who is logged in, and whether they match inventory records.
+  </p>
+
+  <h3>What the agent does</h3>
+  <table>
+    <thead>
+      <tr><th>Action</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Starts on boot</td><td>Runs automatically as a Windows Service</td></tr>
+      <tr><td>Sends heartbeats</td><td>Immediately on start, then every <strong>5 minutes</strong></td></tr>
+      <tr><td>Identifies the PC</td><td>Stable machine ID, hostname, BIOS serial number</td></tr>
+      <tr><td>Links to inventory</td><td>Serial match → asset, employee, and branch in FormGFL</td></tr>
+      <tr><td>Privacy</td><td>Sends hostname, serial, OS, user, LAN IP only — no files or process data</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Online / offline logic</h3>
+  <div class="diagram">PC boots  →  Agent starts  →  POST heartbeat  →  FormGFL marks device ONLINE
+PC off / no network  →  No heartbeat for 15 min  →  FormGFL marks device OFFLINE
+
+View all devices: FormGFL Admin  →  System  →  Devices Online</div>
+
+  <h2>2. Requirements</h2>
+  <table>
+    <thead>
+      <tr><th>Location</th><th>Requirement</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Each Windows PC</td><td>Windows 10+, outbound HTTPS, admin rights for install</td></tr>
+      <tr><td>FormGFL server</td><td>Deployed with presence monitoring; API key with <code>presence.report</code> + <code>presence.enroll</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Architecture</h2>
+  <div class="diagram">┌─────────────────┐         HTTPS POST          ┌──────────────────────┐
+│  Windows PC     │  /api/v1/presence/heartbeat │  FormGFL Server      │
+│  GFLPresence    │ ──────────────────────────► │  MySQL · device_presence
+│  (Service)      │   every 5 minutes           └──────────┬───────────┘
+└─────────────────┘                                        │
+                                                           ▼
+                                                ┌──────────────────────┐
+                                                │  Admin Dashboard     │
+                                                │  Devices Online      │
+                                                └──────────────────────┘</div>
+
+  <h2 class="page-break">4. Phase 1 — Server Setup (FormGFL Admin)</h2>
+  <p>Complete this <strong>once</strong> before installing agents on PCs.</p>
+
+  <h3>Option A — Command line (recommended)</h3>
+  <p>From the FormGFL project folder:</p>
+  <pre>npm run seed:presence-key</pre>
+  <div class="callout">
+    <strong>Important:</strong> Copy the API key when printed — it is shown only once.
+    Key name: <strong>GFL Presence Agent</strong> · Scopes: <code>presence.report</code> + <code>presence.enroll</code> · Whitelist: <code>0.0.0.0/0</code>
+  </div>
+
+  <h3>Option B — Admin web interface</h3>
+  <ol>
+    <li>Sign in to FormGFL admin</li>
+    <li>Go to <strong>Developer → API Integrations</strong></li>
+    <li>Create a new API key with scopes <strong>presence.report</strong> and <strong>presence.enroll</strong></li>
+    <li>Set IP whitelist to <strong>0.0.0.0/0</strong></li>
+    <li>Copy the key (<code>gfl_...</code>)</li>
+  </ol>
+
+  <h3>Verify</h3>
+  <p>Open FormGFL admin → <strong>Devices Online</strong>. Page should load (empty until agents are installed).</p>
+
+  <h2>5. Phase 2 — Build the Agent</h2>
+  <p>Build the <code>.exe</code> once on a developer machine, then copy to all PCs.</p>
+
+  <h3>Step 1 — Install Go (if needed)</h3>
+  <p>Download from <strong>https://go.dev/dl/</strong> or run <code>brew install go</code> on macOS.</p>
+
+  <h3>Step 2 — Build</h3>
+  <p>From the FormGFL project root:</p>
+  <pre>npm run agent:build</pre>
+  <p><strong>Output:</strong> <code>agent/GFLPresence.exe</code> (approx. 6 MB)</p>
+
+  <h2>6. Phase 3 — Prepare Configuration</h2>
+  <p>Create <code>config.json</code> for deployment to each PC.</p>
+  <p><strong>Location on PC:</strong> <code>C:\ProgramData\GFLPresence\config.json</code></p>
+  <pre>{
+  "apiUrl": "https://your-formgfl-domain.com/api/v1/presence/heartbeat",
+  "apiKey": "gfl_your_api_key_here",
+  "intervalSeconds": 300
+}</pre>
+  <table>
+    <thead>
+      <tr><th>Field</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>apiUrl</code></td><td>Full heartbeat URL — use HTTPS in production</td></tr>
+      <tr><td><code>apiKey</code></td><td>API key from Phase 1</td></tr>
+      <tr><td><code>intervalSeconds</code></td><td>Seconds between heartbeats (default: 300 = 5 min)</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="page-break">7. Phase 4 — Install with CMD Wizard (recommended)</h2>
+  <p>This is the easiest path for end users. The wizard enrolls the PC, creates/links the inventory asset, and starts the service.</p>
+
+  <h3>Step 4.1 — Prepare the install folder</h3>
+  <p>Copy these files to a USB stick or network share:</p>
+  <pre>GFLPresence/
+  Install-GFLPresence.cmd
+  setup.ps1
+  GFLPresence.exe
+  config.json</pre>
+  <p>Pre-fill <code>config.json</code> with your production <code>apiUrl</code> and API key.</p>
+
+  <h3>Step 4.2 — Run as Administrator</h3>
+  <ol>
+    <li>Right-click <strong>Install-GFLPresence.cmd</strong> → <strong>Run as administrator</strong></li>
+    <li>Approve the UAC prompt</li>
+  </ol>
+
+  <h3>Step 4.3 — Answer the prompts</h3>
+  <table>
+    <thead>
+      <tr><th>Prompt</th><th>What happens</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Select branch</td><td>Lists active branches from FormGFL</td></tr>
+      <tr><td>Employee email</td><td>Looks up employee for that branch (must already exist)</td></tr>
+      <tr><td>BIOS serial</td><td>Auto-detected; confirm or type manually</td></tr>
+      <tr><td>Device type</td><td>Laptop / Desktop / All-in-One — used only when creating a new asset</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Step 4.4 — What the installer does</h3>
+  <ul>
+    <li>Creates the inventory asset if the serial is new, or reassigns an existing asset</li>
+    <li>Marks the PC online in <strong>Devices Online</strong></li>
+    <li>Writes <code>C:\ProgramData\GFLPresence\config.json</code></li>
+    <li>Installs and starts the <strong>GFL PC Presence Agent</strong> Windows Service</li>
+  </ul>
+
+  <h3>Step 4.5 — Verify</h3>
+  <table>
+    <thead>
+      <tr><th>Where</th><th>What to check</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>FormGFL → Devices Online</td><td>PC appears as <strong>Online</strong> with employee + branch</td></tr>
+      <tr><td>Inventory</td><td>Asset assigned to the employee</td></tr>
+      <tr><td>Services (<code>services.msc</code>)</td><td><strong>GFL PC Presence Agent</strong> — Running, Automatic</td></tr>
+    </tbody>
+  </table>
+
+  <h2>7b. Manual install (advanced)</h2>
+  <p>Use only if you do not need the enroll/link wizard.</p>
+  <pre>New-Item -ItemType Directory -Force -Path "C:\Program Files\GFLPresence"
+Copy-Item GFLPresence.exe "C:\Program Files\GFLPresence\"
+New-Item -ItemType Directory -Force -Path "C:\ProgramData\GFLPresence"
+Copy-Item config.json "C:\ProgramData\GFLPresence\config.json"
+cd "C:\Program Files\GFLPresence"
+.\GFLPresence.exe -service install
+.\GFLPresence.exe -service start</pre>
+
+  <h2>8. Service Management Commands</h2>
+  <p>Run from elevated PowerShell in <code>C:\Program Files\GFLPresence\</code>:</p>
+  <table>
+    <thead>
+      <tr><th>Command</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>GFLPresence.exe -service install</code></td><td>Register auto-start Windows Service</td></tr>
+      <tr><td><code>GFLPresence.exe -service start</code></td><td>Start the service</td></tr>
+      <tr><td><code>GFLPresence.exe -service stop</code></td><td>Stop the service</td></tr>
+      <tr><td><code>GFLPresence.exe -service restart</code></td><td>Restart the service</td></tr>
+      <tr><td><code>GFLPresence.exe -service uninstall</code></td><td>Remove the service</td></tr>
+      <tr><td><code>GFLPresence.exe run</code></td><td>Foreground mode (testing only)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>9. Linking PCs to Inventory</h2>
+  <p>When the BIOS serial matches a product <strong>SKU</strong> in FormGFL, the device links to the asset, employee, and branch automatically.</p>
+  <p>Check BIOS serial on a PC:</p>
+  <pre>(Get-CimInstance Win32_BIOS).SerialNumber</pre>
+
+  <h2>10. Rollout to Many PCs</h2>
+  <table>
+    <thead>
+      <tr><th>Method</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Group Policy (GPO)</td><td>Deploy exe, config, and one-time install script</td></tr>
+      <tr><td>Microsoft Intune</td><td>Package as Win32 app</td></tr>
+      <tr><td>SCCM / MECM</td><td>Standard software deployment</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead>
+      <tr><th>Item</th><th>Recommended path</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Program files</td><td><code>C:\Program Files\GFLPresence\</code></td></tr>
+      <tr><td>Configuration</td><td><code>C:\ProgramData\GFLPresence\config.json</code></td></tr>
+      <tr><td>Machine ID (auto)</td><td><code>C:\ProgramData\GFLPresence\machine-id.txt</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="page-break">11. Security Notes</h2>
+  <ul>
+    <li>Store API key only in <code>config.json</code> on each PC</li>
+    <li>Use a dedicated key scoped to <code>presence.report</code> + <code>presence.enroll</code></li>
+    <li>Use HTTPS in production</li>
+    <li>Agent sends hostname, serial, OS, username, LAN IP only</li>
+    <li>Rotate the API key if a machine is decommissioned</li>
+  </ul>
+
+  <h2>12. Troubleshooting</h2>
+  <table>
+    <thead>
+      <tr><th>Problem</th><th>Solution</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Service won't start</td><td>Run <code>GFLPresence.exe run</code>; check config JSON</td></tr>
+      <tr><td>401 Unauthorized</td><td>Verify API key has <code>presence.report</code> and <code>presence.enroll</code></td></tr>
+      <tr><td>403 IP not whitelisted</td><td>Set whitelist to <code>0.0.0.0/0</code> in Admin → Developer</td></tr>
+      <tr><td>Employee not found</td><td>Email must exist for the selected branch</td></tr>
+      <tr><td>Not linked to employee</td><td>Re-run <code>Install-GFLPresence.cmd</code> as Administrator</td></tr>
+      <tr><td>Shows offline</td><td>Check HTTPS outbound; offline after 15 min without heartbeat</td></tr>
+      <tr><td>PC not appearing</td><td>Confirm service running; check Event Viewer</td></tr>
+    </tbody>
+  </table>
+
+  <h2>13. Deployment Checklist</h2>
+  <ul class="checklist">
+    <li>FormGFL server live; Devices Online page loads</li>
+    <li>API key created with presence.report + presence.enroll scopes</li>
+    <li>Install folder prepared (cmd, ps1, exe, config.json)</li>
+    <li>Install-GFLPresence.cmd run as Administrator</li>
+    <li>Branch selected and employee email verified</li>
+    <li>BIOS serial confirmed; asset created or linked</li>
+    <li>PC appears in Devices Online within 1 minute</li>
+  </ul>
+
+  <p class="footer-note">
+    Goodfellow IT · FormGFL Presence Agent · Deployment Guide v1.0
+  </p>
+
+</body>
+</html>

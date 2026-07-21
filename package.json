@@ -18,7 +18,8 @@
     "deploy:coolify:postdeploy": "bash scripts/coolify-postdeploy.sh",
     "seed:remote": "node scripts/seed-remote.mjs",
     "seed:presence-key": "node scripts/seed-presence-key.mjs",
-    "agent:build": "bash agent/build.sh"
+    "agent:build": "bash agent/build.sh",
+    "docs:presence-pdf": "node scripts/generate-presence-guide-pdf.mjs"
   },
   "dependencies": {
     "cors": "^2.8.6",

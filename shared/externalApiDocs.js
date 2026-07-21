@@ -212,4 +212,71 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
       pagination: { total: 1, limit: 50, offset: 0, page: 1, pages: 1 },
     },
   },
+  {
+    id: 'presence-heartbeat',
+    method: 'POST',
+    path: '/presence/heartbeat',
+    scope: 'presence.report',
+    summary: 'Report that a Windows PC is online (used by the GFL Presence agent).',
+    queryParams: [],
+    responseExample: {
+      ok: true,
+      data: {
+        machineId: 'uuid',
+        hostname: 'DESK-042',
+        serialNumber: 'ABC123',
+        onlineStatus: 'online',
+        lastHeartbeatAt: '2026-07-21T15:30:00.000Z',
+      },
+    },
+  },
+  {
+    id: 'presence-setup-branches',
+    method: 'GET',
+    path: '/presence/setup/branches',
+    scope: 'presence.enroll',
+    summary: 'List active branches for the Windows CMD setup wizard.',
+    queryParams: [],
+    responseExample: {
+      ok: true,
+      data: [{ id: 'brn-1', code: 'LUN', name: 'Lusaka HQ', city: 'Lusaka', status: 'active' }],
+    },
+  },
+  {
+    id: 'presence-setup-lookup',
+    method: 'POST',
+    path: '/presence/setup/lookup',
+    scope: 'presence.enroll',
+    summary: 'Look up an employee by email at a branch (CMD installer step).',
+    queryParams: [],
+    responseExample: {
+      ok: true,
+      data: {
+        branch: { id: 'brn-1', code: 'LUN', name: 'Lusaka HQ' },
+        employee: {
+          id: 'emp-1',
+          employeeCode: 'EMP-001',
+          fullName: 'Jane Banda',
+          email: 'jane@goodfellow.co.zm',
+        },
+      },
+    },
+  },
+  {
+    id: 'presence-setup-enroll',
+    method: 'POST',
+    path: '/presence/setup/enroll',
+    scope: 'presence.enroll',
+    summary: 'Create or reassign inventory asset by BIOS serial, link employee/branch, and mark presence online.',
+    queryParams: [],
+    responseExample: {
+      ok: true,
+      data: {
+        created: true,
+        machineId: 'uuid',
+        product: { id: 'prd-1', sku: 'ABC123', name: 'DESK-042 (Laptop)', category: 'Laptop' },
+        presence: { onlineStatus: 'online', employeeName: 'Jane Banda', branchName: 'Lusaka HQ' },
+      },
+    },
+  },
 ];

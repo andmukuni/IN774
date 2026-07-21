@@ -11,6 +11,11 @@ import {
   PRODUCT_SELECT_FIELDS,
 } from '../utils/externalApiHelpers.js';
 import { upsertHeartbeat } from '../utils/presenceHelpers.js';
+import {
+  enrollPresenceDevice,
+  listSetupBranches,
+  lookupSetupEmployee,
+} from '../utils/presenceEnrollHelpers.js';
 
 function parseListQuery(query) {
   const q = parseTableQuery(query, { defaultLimit: 50, maxLimit: 200 });
@@ -228,6 +233,33 @@ export function createExternalRouter() {
     try {
       const data = await upsertHeartbeat(req.body || {});
       res.json({ ok: true, data });
+    } catch (error) {
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.get('/presence/setup/branches', createExternalApiAuth('presence.enroll'), async (_req, res) => {
+    try {
+      const data = await listSetupBranches();
+      res.json({ ok: true, data });
+    } catch (error) {
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/presence/setup/lookup', createExternalApiAuth('presence.enroll'), async (req, res) => {
+    try {
+      const data = await lookupSetupEmployee(req.body || {});
+      res.json({ ok: true, data });
+    } catch (error) {
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/presence/setup/enroll', createExternalApiAuth('presence.enroll'), async (req, res) => {
+    try {
+      const data = await enrollPresenceDevice(req.body || {});
+      res.status(data.created ? 201 : 200).json({ ok: true, data });
     } catch (error) {
       res.status(error?.status || 500).json({ ok: false, message: error.message });
     }

@@ -22,8 +22,14 @@ const { ensureApiKeysTable, createApiKey, listApiKeys } = await import('../serve
 
 await ensureApiKeysTable();
 
+const REQUIRED_SCOPES = ['presence.report', 'presence.enroll'];
+
 const existing = (await listApiKeys()).find(
-  (key) => key.name === KEY_NAME && key.status === 'active' && key.scopes.includes('presence.report'),
+  (key) => (
+    key.name === KEY_NAME
+    && key.status === 'active'
+    && REQUIRED_SCOPES.every((scope) => key.scopes.includes(scope))
+  ),
 );
 
 if (existing) {
@@ -37,7 +43,7 @@ if (existing) {
 
 const data = await createApiKey({
   name: KEY_NAME,
-  scopes: ['presence.report'],
+  scopes: REQUIRED_SCOPES,
   ipWhitelist: ['0.0.0.0/0'],
   createdBy: 'seed-presence-key',
 });
