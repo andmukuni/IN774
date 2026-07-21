@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import pool from '../db.js';
+import { publishMonitorEvent } from './monitorEvents.js';
 
 export const MONITOR_TYPES = ['http', 'tcp', 'mysql'];
 export const MONITOR_STATUSES = ['unknown', 'up', 'down'];
@@ -378,6 +379,15 @@ export async function listMonitorTargetsWithTelemetry() {
       traffic,
     };
   });
+}
+
+export async function broadcastMonitorSnapshot() {
+  const targets = await listMonitorTargetsWithTelemetry();
+  publishMonitorEvent('snapshot', {
+    targets,
+    at: new Date().toISOString(),
+  });
+  return targets;
 }
 
 export async function getMonitorTarget(id, { includeSecrets = false } = {}) {

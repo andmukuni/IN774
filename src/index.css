@@ -260,3 +260,33 @@ html.intake-mobile .intake-shell {
 html.intake-mobile .intake-form-input {
   font-size: 16px;
 }
+
+@keyframes monitor-sparkline-draw {
+  from {
+    stroke-dashoffset: 160;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes monitor-live-glow {
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 0 rgb(20 145 155 / 0));
+  }
+  50% {
+    opacity: 0.88;
+    filter: drop-shadow(0 0 4px rgb(20 145 155 / 0.45));
+  }
+}
+
+.monitor-sparkline-line {
+  stroke-dasharray: 160;
+  animation: monitor-sparkline-draw 1.2s ease-out;
+}
+
+.monitor-live-dot {
+  animation: monitor-live-glow 1.6s ease-in-out infinite;
+}

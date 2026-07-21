@@ -1,6 +1,7 @@
 import { sendEmail } from './emailService.js';
 import {
   applyCheckOutcome,
+  broadcastMonitorSnapshot,
   listDueMonitorTargets,
   pruneOldCheckResults,
 } from './monitorHelpers.js';
@@ -80,6 +81,7 @@ async function tick() {
           console.warn(`[monitor] Check failed for ${target.id}:`, error.message);
         }
       });
+      await broadcastMonitorSnapshot();
     }
     if (tickCount % PRUNE_EVERY_TICKS === 0) {
       await pruneOldCheckResults();

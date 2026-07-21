@@ -1,14 +1,60 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, Eye, PlusCircle, RefreshCw } from 'lucide-react';
 import { PageHeader, Card, Spinner, LoadingButton } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { useMonitorStream } from '../../hooks/useMonitorStream';
 import { getApiBase } from '../../utils/apiBase';
 import { getAdminAuthHeaders } from '../../utils/authHeaders';
 
 const API_BASE = getApiBase();
-const LIVE_POLL_MS = 5_000;
+
+function secondsSince(value) {
+  if (!value) return null;
+  const ms = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(ms)) return null;
+  return Math.max(0, Math.floor(ms / 1000));
+}
+
+function useAnimatedNumber(target) {
+  const [display, setDisplay] = useState(target ?? null);
+  const fromRef = useRef(target ?? null);
+
+  useEffect(() => {
+    if (target == null) {
+      setDisplay(null);
+      fromRef.current = null;
+      return undefined;
+    }
+    const from = fromRef.current ?? target;
+    if (from === target) {
+      setDisplay(target);
+      fromRef.current = target;
+      return undefined;
+    }
+
+    const start = performance.now();
+    const duration = 500;
+    let raf = 0;
+
+    const step = (now) => {
+      const progress = Math.min(1, (now - start) / duration);
+      const eased = 1 - (1 - progress) ** 3;
+      setDisplay(Math.round(from + (target - from) * eased));
+      if (progress < 1) {
+        raf = requestAnimationFrame(step);
+      } else {
+        fromRef.current = target;
+      }
+    };
+
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+
+  return display;
+}
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -64,37 +110,61 @@ const TRAFFIC_TONE_CLASS = {
   muted: 'text-navy-400',
 };
 
-function LatencySparkline({ samples = [], width = 80, height = 28 }) {
+function LatencySparkline({ samples = [], width = 80, height = 28, animateKey = 0 }) {
   const points = (samples || []).filter((v) => Number.isFinite(v));
   if (points.length < 2) {
-    return <span className="inline-block h-7 w-20 rounded bg-navy-50" aria-hidden />;
+    return (
+      <span className="inline-block h-7 w-20 animate-pulse rounded bg-gradient-to-r from-navy-50 via-cyan-100/50 to-navy-50" aria-hidden />
+    );
   }
 
   const max = Math.max(...points, 1);
   const min = Math.min(...points);
   const range = Math.max(max - min, 1);
-  const coords = points.map((value, index) => {
+  const plotted = points.map((value, index) => {
     const x = (index / (points.length - 1)) * width;
     const y = height - ((value - min) / range) * (height - 4) - 2;
-    return `${x},${y}`;
-  }).join(' ');
+    return { x, y };
+  });
+  const coords = plotted.map((p) => `${p.x},${p.y}`).join(' ');
+  const last = plotted[plotted.length - 1];
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="shrink-0 text-cyan-600" aria-hidden>
       <polyline
+        key={`line-${animateKey}-${coords}`}
         fill="none"
         stroke="currentColor"
         strokeWidth="1.75"
         strokeLinejoin="round"
         strokeLinecap="round"
         points={coords}
+        className="monitor-sparkline-line"
+      />
+      <circle
+        cx={last.x}
+        cy={last.y}
+        r="2.75"
+        className="fill-cyan-500 monitor-live-dot"
       />
     </svg>
   );
 }
 
-function LiveMsCell({ latencyMs, avgLatencyMs, recentLatencies = [], trend = 'flat', flash = false }) {
+function LiveMsCell({
+  latencyMs,
+  avgLatencyMs,
+  recentLatencies = [],
+  trend = 'flat',
+  flash = false,
+  lastCheckedAt,
+  intervalSeconds = 300,
+  liveTick = 0,
+  pollGeneration = 0,
+  streamConnected = false,
+}) {
   const displayMs = latencyMs ?? avgLatencyMs;
+  const animatedMs = useAnimatedNumber(displayMs);
   const trendSymbol = trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→';
   const trendClass = trend === 'up'
     ? 'text-amber-600'
@@ -102,20 +172,37 @@ function LiveMsCell({ latencyMs, avgLatencyMs, recentLatencies = [], trend = 'fl
       ? 'text-emerald-600'
       : 'text-navy-400';
 
+  const ageSec = secondsSince(lastCheckedAt);
+  const nextCheckSec = ageSec == null
+    ? null
+    : Math.max(0, (intervalSeconds || 300) - ageSec);
+
   return (
-    <div className={`flex items-center gap-2 min-w-[130px] transition-colors duration-500 ${flash ? 'rounded-lg bg-cyan-50/80 px-1 -mx-1' : ''}`}>
-      <LatencySparkline samples={recentLatencies} />
+    <div className={`flex items-center gap-2 min-w-[138px] transition-colors duration-300 ${flash ? 'rounded-lg bg-cyan-50/90 px-1 -mx-1' : ''}`}>
+      <LatencySparkline
+        samples={recentLatencies}
+        animateKey={pollGeneration}
+      />
       <div className="leading-tight">
         <div className="flex items-baseline gap-1">
-          <span className="font-mono text-sm font-semibold tabular-nums text-navy-900">
-            {displayMs != null ? displayMs : '—'}
+          <span className={`font-mono text-sm font-semibold tabular-nums transition-colors ${flash ? 'text-cyan-700' : 'text-navy-900'}`}>
+            {animatedMs != null ? animatedMs : '—'}
           </span>
-          {displayMs != null && <span className="text-[10px] text-navy-400">ms</span>}
+          {animatedMs != null && <span className="text-[10px] text-navy-400">ms</span>}
           <span className={`text-[10px] font-bold ${trendClass}`} title="Latest trend">{trendSymbol}</span>
         </div>
-        {avgLatencyMs != null && displayMs != null && avgLatencyMs !== displayMs && (
+        {avgLatencyMs != null && displayMs != null && (
           <p className="text-[10px] tabular-nums text-navy-400">avg {avgLatencyMs} ms</p>
         )}
+        <p className="text-[10px] tabular-nums text-cyan-700/80" key={liveTick}>
+          {ageSec != null ? `${ageSec}s ago` : 'waiting…'}
+          {nextCheckSec != null && nextCheckSec > 0 && (
+            <span className="text-navy-400">{` · next ${nextCheckSec}s`}</span>
+          )}
+          {!streamConnected && (
+            <span className="text-amber-600">{` · reconnecting`}</span>
+          )}
+        </p>
       </div>
     </div>
   );
@@ -155,6 +242,34 @@ export default function MonitorListPage() {
   const [checkingId, setCheckingId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [flashIds, setFlashIds] = useState(new Set());
+  const [liveTick, setLiveTick] = useState(0);
+  const [streamGeneration, setStreamGeneration] = useState(0);
+  const targetsRef = useRef([]);
+
+  const applyTargets = useCallback((next, { bumpGeneration = true } = {}) => {
+    setTargets((prev) => {
+      const changed = new Set();
+      for (const row of next) {
+        const old = prev.find((p) => p.id === row.id);
+        if (!old) continue;
+        if (
+          old.lastLatencyMs !== row.lastLatencyMs
+          || JSON.stringify(old.recentLatencies) !== JSON.stringify(row.recentLatencies)
+        ) {
+          changed.add(row.id);
+        }
+      }
+      if (changed.size) {
+        setFlashIds(changed);
+        window.setTimeout(() => setFlashIds(new Set()), 900);
+      }
+      return next;
+    });
+    targetsRef.current = next;
+    if (bumpGeneration) setStreamGeneration((g) => g + 1);
+    setLoading(false);
+    setRefreshing(false);
+  }, []);
 
   const loadTargets = useCallback(async (silent = false) => {
     if (!canView) {
@@ -170,34 +285,33 @@ export default function MonitorListPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.ok) throw new Error(json?.message || 'Failed to load monitor targets');
-      const next = Array.isArray(json.data) ? json.data : [];
-      setTargets((prev) => {
-        const changed = new Set();
-        for (const row of next) {
-          const old = prev.find((p) => p.id === row.id);
-          if (old && old.lastLatencyMs !== row.lastLatencyMs) {
-            changed.add(row.id);
-          }
-        }
-        if (changed.size) {
-          setFlashIds(changed);
-          window.setTimeout(() => setFlashIds(new Set()), 700);
-        }
-        return next;
-      });
+      applyTargets(Array.isArray(json.data) ? json.data : [], { bumpGeneration: silent });
     } catch (err) {
       toast.error(err?.message || 'Unable to load monitor targets.');
-    } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [canView, toast]);
+  }, [canView, toast, applyTargets]);
+
+  const handleStreamSnapshot = useCallback((next) => {
+    applyTargets(next, { bumpGeneration: true });
+  }, [applyTargets]);
+
+  const { connected: streamConnected, error: streamError } = useMonitorStream({
+    enabled: canView,
+    onSnapshot: handleStreamSnapshot,
+  });
 
   useEffect(() => {
-    loadTargets();
-    const interval = setInterval(() => loadTargets(true), LIVE_POLL_MS);
+    if (streamError && !streamConnected && !targetsRef.current.length) {
+      loadTargets();
+    }
+  }, [streamError, streamConnected, loadTargets]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setLiveTick((t) => t + 1), 1000);
     return () => clearInterval(interval);
-  }, [loadTargets]);
+  }, []);
 
   const summary = useMemo(() => ({
     total: targets.length,
@@ -216,7 +330,6 @@ export default function MonitorListPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.ok) throw new Error(json?.message || 'Check failed');
       toast.success('Check completed.');
-      await loadTargets(true);
     } catch (err) {
       toast.error(err?.message || 'Unable to run check.');
     } finally {
@@ -236,7 +349,9 @@ export default function MonitorListPage() {
     <div className="space-y-6">
       <PageHeader
         title="Servers & DB Monitor"
-        subtitle="Track reachability of URLs, servers, and MySQL databases"
+        subtitle={streamConnected
+          ? 'Live updates via server stream — no page polling'
+          : 'Connecting to live monitor stream…'}
         breadcrumbs={[
           { label: 'Admin', to: '/admin' },
           { label: 'Monitor' },
@@ -310,7 +425,21 @@ export default function MonitorListPage() {
                     <th className="px-4 py-3 font-semibold">Endpoint</th>
                     <th className="px-4 py-3 font-semibold">Status</th>
                     <th className="px-4 py-3 font-semibold">Last check</th>
-                    <th className="px-4 py-3 font-semibold">Live (ms)</th>
+                    <th className="px-4 py-3 font-semibold">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="relative flex h-2 w-2">
+                          {streamConnected ? (
+                            <>
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-60" />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-500" />
+                            </>
+                          ) : (
+                            <span className="relative inline-flex h-2 w-2 animate-pulse rounded-full bg-amber-400" />
+                          )}
+                        </span>
+                        Live (ms)
+                      </span>
+                    </th>
                     <th className="px-4 py-3 font-semibold">Speed / traffic</th>
                     <th className="px-4 py-3 font-semibold text-right">Actions</th>
                   </tr>
@@ -337,6 +466,11 @@ export default function MonitorListPage() {
                           recentLatencies={target.recentLatencies}
                           trend={target.latencyTrend}
                           flash={flashIds.has(target.id)}
+                          lastCheckedAt={target.lastCheckedAt}
+                          intervalSeconds={target.intervalSeconds}
+                          liveTick={liveTick}
+                          pollGeneration={streamGeneration}
+                          streamConnected={streamConnected}
                         />
                       </td>
                       <td className="px-4 py-3">
