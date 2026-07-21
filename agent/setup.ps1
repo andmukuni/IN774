@@ -13,6 +13,7 @@ $ProgramDir = 'C:\Program Files\GFLPresence'
 $ConfigDir = 'C:\ProgramData\GFLPresence'
 $AgentExeName = 'GFLPresence.exe'
 $AgentVersion = '1.0.0'
+$InstallerVersion = '1.1.0'
 
 function Write-Step([string]$Message) {
   Write-Host ""
@@ -185,8 +186,9 @@ function Ensure-MachineId([string]$Dir) {
 # --- Main -------------------------------------------------------------------
 
 Write-Host ""
-Write-Host "GFL Presence Agent - Setup Wizard" -ForegroundColor White
+Write-Host "GFL Presence Agent - Setup Wizard (installer v$InstallerVersion)" -ForegroundColor White
 Write-Host "This will enroll this PC in FormGFL and install the online monitoring service."
+Write-Host "If email is new, you can register the employee during setup."
 Write-Host ""
 
 # 1) Config / API credentials
