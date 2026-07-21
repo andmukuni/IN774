@@ -161,7 +161,7 @@ Ongoing heartbeats also match BIOS serial → product **SKU**. Ensure serial num
 
 ## Offline detection
 
-FormGFL marks a device **offline** if no heartbeat is received for **8 minutes** (configurable via `PRESENCE_OFFLINE_THRESHOLD_MINUTES` on the server). Force power-off cannot send a goodbye packet — that timeout is what flips status.
+FormGFL marks a device **offline** if no heartbeat is received for **3 minutes** (configurable via `PRESENCE_OFFLINE_THRESHOLD_MINUTES` on the server). Force power-off cannot send a goodbye packet — that timeout is what flips status.
 
 ## Rollout to many PCs
 
@@ -189,8 +189,8 @@ Recommended config path: `C:\ProgramData\GFLPresence\config.json`
 | 403 IP not whitelisted | Presence endpoints skip IP checks; for other scopes set whitelist to `*` |
 | Employee not found | Installer can register a new employee (first/last name) at the selected branch |
 | Device not linked | Re-run the CMD installer, or ensure product SKU matches BIOS serial |
-| PC shows offline | Check network/firewall allows outbound HTTPS; default interval is 2 min, offline threshold is 8 min |
-| Still online after force power-off | Wait for the 8-minute missed-heartbeat window (or redeploy server + reinstall agent 1.2+) |
+| PC shows offline | Check network/firewall allows outbound HTTPS; default interval is 2 min, offline threshold is 3 min |
+| Still online after force power-off | Wait for the 3-minute missed-heartbeat window (use agent 1.2+ with 2-min heartbeats) |
 
 ## API reference
 
