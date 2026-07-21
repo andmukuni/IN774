@@ -68,7 +68,7 @@ export const PRODUCT_SELECT_FIELDS = `
     SELECT CASE
       WHEN dp.online_status = 'online'
        AND dp.last_heartbeat_at IS NOT NULL
-       AND dp.last_heartbeat_at >= DATE_SUB(NOW(), INTERVAL 3 MINUTE)
+       AND dp.last_heartbeat_at >= DATE_SUB(NOW(), INTERVAL 8 MINUTE)
       THEN 'online'
       ELSE 'offline'
     END

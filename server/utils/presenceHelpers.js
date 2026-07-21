@@ -7,11 +7,11 @@ import {
   setPresenceBroadcastHandler,
 } from './presenceEvents.js';
 
-/** Missed-heartbeat window. With ~2 min agent interval, 3 min ≈ force-power-off detection. */
-export const PRESENCE_OFFLINE_THRESHOLD_MINUTES = Number(process.env.PRESENCE_OFFLINE_THRESHOLD_MINUTES || 3);
+/** Missed-heartbeat window. Must stay above agent interval (2–5 min) to avoid false offline. */
+export const PRESENCE_OFFLINE_THRESHOLD_MINUTES = Number(process.env.PRESENCE_OFFLINE_THRESHOLD_MINUTES || 8);
 
 export function presenceThresholdMinutes() {
-  return Math.max(1, Number(PRESENCE_OFFLINE_THRESHOLD_MINUTES) || 3);
+  return Math.max(1, Number(PRESENCE_OFFLINE_THRESHOLD_MINUTES) || 8);
 }
 
 const PRESENCE_SELECT = `

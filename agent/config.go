@@ -26,7 +26,7 @@ func (c *Config) normalize() error {
 	if c.ConfigDir == "" {
 		c.ConfigDir = defaultConfigDir
 	}
-	// Default 2 minutes so force power-off is detected within ~3 minutes server-side.
+	// Default 2 minutes; server marks offline after ~8 minutes without a heartbeat.
 	if c.IntervalSeconds <= 0 {
 		c.IntervalSeconds = 120
 	}

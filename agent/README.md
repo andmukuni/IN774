@@ -161,7 +161,7 @@ Ongoing heartbeats also match BIOS serial → product **SKU**. Ensure serial num
 
 ## Offline detection
 
-FormGFL marks a device **offline** if no heartbeat is received for **3 minutes** (configurable via `PRESENCE_OFFLINE_THRESHOLD_MINUTES` on the server). Force power-off cannot send a goodbye packet — that timeout is what flips status.
+FormGFL marks a device **offline** if no heartbeat is received for **8 minutes** (configurable via `PRESENCE_OFFLINE_THRESHOLD_MINUTES` on the server). Force power-off cannot send a goodbye packet — that timeout is what flips status. Keep this above the agent heartbeat interval so brief network delays do not show false Offline.
 
 ## Rollout to many PCs
 

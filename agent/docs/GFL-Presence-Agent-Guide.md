@@ -24,7 +24,7 @@ The **GFL Presence Agent** is a small Windows program that runs as a background 
 
 ```
 PC boots  →  Agent starts  →  POST heartbeat  →  FormGFL marks device ONLINE
-PC sleeps / hard power-off  →  No heartbeat for ~3 min  →  FormGFL marks device OFFLINE
+PC sleeps / hard power-off  →  No heartbeat for ~8 min  →  FormGFL marks device OFFLINE
 Clean shutdown / service stop  →  Agent sends offline goodbye  →  FormGFL marks OFFLINE immediately
 ```
 
