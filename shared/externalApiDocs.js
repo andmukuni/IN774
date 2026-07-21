@@ -247,18 +247,16 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
     method: 'POST',
     path: '/presence/setup/lookup',
     scope: 'presence.enroll',
-    summary: 'Look up an employee by email at a branch (CMD installer step).',
+    summary: 'Look up an employee by email at a branch (CMD installer step). Returns found=false when the email can be registered as new.',
     queryParams: [],
     responseExample: {
       ok: true,
       data: {
+        found: false,
+        matchedOtherBranch: false,
+        email: 'jane@goodfellow.co.zm',
         branch: { id: 'brn-1', code: 'LUN', name: 'Lusaka HQ' },
-        employee: {
-          id: 'emp-1',
-          employeeCode: 'EMP-001',
-          fullName: 'Jane Banda',
-          email: 'jane@goodfellow.co.zm',
-        },
+        employee: null,
       },
     },
   },
@@ -267,12 +265,13 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
     method: 'POST',
     path: '/presence/setup/enroll',
     scope: 'presence.enroll',
-    summary: 'Create or reassign inventory asset by BIOS serial, link employee/branch, and mark presence online.',
+    summary: 'Create or reassign inventory asset by BIOS serial, register employee if needed, link, and mark presence online.',
     queryParams: [],
     responseExample: {
       ok: true,
       data: {
         created: true,
+        employeeCreated: true,
         machineId: 'uuid',
         product: { id: 'prd-1', sku: 'ABC123', name: 'DESK-042 (Laptop)', category: 'Laptop' },
         presence: { onlineStatus: 'online', employeeName: 'Jane Banda', branchName: 'Lusaka HQ' },

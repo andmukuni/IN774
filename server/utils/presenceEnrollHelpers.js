@@ -1,10 +1,13 @@
 import crypto from 'crypto';
 import pool from '../db.js';
 import { mapBranchRow } from './branchHelpers.js';
+import { mapEmployeeRow } from './employeeHelpers.js';
 import {
   INTAKE_EMPLOYEE_DEVICE_TYPES,
   findEmployeeByContact,
   normalizeIntakeEmail,
+  normalizeIntakePhone,
+  resolveEmployeeCode,
 } from './intakeHelpers.js';
 import { upsertHeartbeat } from './presenceHelpers.js';
 import {
@@ -19,6 +22,10 @@ function generateProductId() {
   return `prd-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 }
 
+function generateEmployeeId() {
+  return `emp-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+}
+
 function generateMachineId() {
   return crypto.randomUUID();
 }
@@ -27,6 +34,38 @@ function httpError(status, message) {
   const error = new Error(message);
   error.status = status;
   return error;
+}
+
+async function getActiveBranch(branchId) {
+  const resolvedBranchId = String(branchId || '').trim();
+  if (!resolvedBranchId) {
+    throw httpError(400, 'Branch is required.');
+  }
+  const [[branch]] = await pool.query(
+    `SELECT id, code, name, city, address, phone, manager_name, status, updated_at
+     FROM branches WHERE id = ? AND status = 'active' LIMIT 1`,
+    [resolvedBranchId],
+  );
+  if (!branch) {
+    throw httpError(404, 'Branch not found.');
+  }
+  return branch;
+}
+
+async function findEmployeeByEmailAnywhere(email) {
+  const normalizedEmail = normalizeIntakeEmail(email);
+  if (!normalizedEmail) return null;
+
+  const [rows] = await pool.query(
+    `SELECT e.id, e.employee_code, e.first_name, e.last_name, e.email, e.phone, e.job_title, e.branch_id, e.status, e.updated_at,
+            b.code AS branch_code, b.name AS branch_name
+     FROM employees e
+     LEFT JOIN branches b ON b.id = e.branch_id
+     WHERE e.status = 'active'`,
+  );
+
+  const match = rows.find((row) => normalizeIntakeEmail(row.email) === normalizedEmail);
+  return match ? mapEmployeeRow(match) : null;
 }
 
 export async function listSetupBranches() {
@@ -40,34 +79,122 @@ export async function listSetupBranches() {
   return rows.map(mapBranchRow);
 }
 
+/**
+ * Lookup employee for installer.
+ * Returns 200-shaped payload: { found, branch, email, employee|null, matchedOtherBranch }
+ */
 export async function lookupSetupEmployee({ branchId, email } = {}) {
-  const resolvedBranchId = String(branchId || '').trim();
+  const branch = await getActiveBranch(branchId);
   const resolvedEmail = String(email || '').trim();
-
-  if (!resolvedBranchId) {
-    throw httpError(400, 'Branch is required.');
-  }
   if (!resolvedEmail) {
     throw httpError(400, 'Employee email is required.');
   }
 
-  const [[branch]] = await pool.query(
-    `SELECT id, code, name FROM branches WHERE id = ? AND status = 'active' LIMIT 1`,
-    [resolvedBranchId],
-  );
-  if (!branch) {
-    throw httpError(404, 'Branch not found.');
-  }
+  const normalizedEmail = normalizeIntakeEmail(resolvedEmail);
+  let employee = await findEmployeeByContact(branch.id, { email: resolvedEmail });
+  let matchedOtherBranch = false;
 
-  const employee = await findEmployeeByContact(branch.id, { email: resolvedEmail });
   if (!employee) {
-    throw httpError(
-      404,
-      `No active employee found for ${normalizeIntakeEmail(resolvedEmail)} at ${branch.name}.`,
-    );
+    employee = await findEmployeeByEmailAnywhere(resolvedEmail);
+    if (employee && employee.branchId !== branch.id) {
+      matchedOtherBranch = true;
+    }
   }
 
-  return { branch: mapBranchRow(branch), employee };
+  return {
+    found: Boolean(employee),
+    matchedOtherBranch,
+    email: normalizedEmail,
+    branch: mapBranchRow(branch),
+    employee: employee || null,
+  };
+}
+
+async function createEmployeeAtBranch(branch, {
+  email,
+  firstName,
+  lastName,
+  phone = '',
+  jobTitle = '',
+  employeeCode = '',
+} = {}) {
+  const normalizedEmail = normalizeIntakeEmail(email);
+  const first = String(firstName || '').trim();
+  const last = String(lastName || '').trim();
+  if (!first || !last) {
+    throw httpError(400, 'First name and last name are required to register a new employee.');
+  }
+  if (!normalizedEmail) {
+    throw httpError(400, 'Employee email is required.');
+  }
+
+  // Race-safe: another PC may have just created this email.
+  const existing = await findEmployeeByEmailAnywhere(normalizedEmail);
+  if (existing) return { employee: existing, created: false };
+
+  const id = generateEmployeeId();
+  const code = await resolveEmployeeCode(employeeCode);
+  const normalizedPhone = normalizeIntakePhone(phone);
+
+  await pool.query(
+    `INSERT INTO employees (id, employee_code, first_name, last_name, email, phone, job_title, branch_id, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+    [
+      id,
+      code,
+      first,
+      last,
+      normalizedEmail,
+      normalizedPhone,
+      String(jobTitle || '').trim(),
+      branch.id,
+    ],
+  );
+
+  const employee = await findEmployeeByEmailAnywhere(normalizedEmail);
+  if (!employee) {
+    throw httpError(500, 'Employee was created but could not be loaded.');
+  }
+  return { employee, created: true };
+}
+
+async function resolveEmployeeForEnroll(branch, payload = {}) {
+  const email = String(payload.email || '').trim();
+  const normalizedEmail = normalizeIntakeEmail(email);
+  if (!normalizedEmail) {
+    throw httpError(400, 'Employee email is required.');
+  }
+
+  let employee = await findEmployeeByContact(branch.id, { email });
+  if (!employee) {
+    employee = await findEmployeeByEmailAnywhere(email);
+  }
+
+  if (employee) {
+    // Keep selected branch as the employee's branch when enrolling from installer.
+    if (employee.branchId !== branch.id) {
+      await pool.query('UPDATE employees SET branch_id = ? WHERE id = ?', [branch.id, employee.id]);
+      employee = {
+        ...employee,
+        branchId: branch.id,
+        branchCode: branch.code,
+        branchName: branch.name,
+      };
+    }
+    return { employee, employeeCreated: false };
+  }
+
+  const newEmployee = payload.newEmployee || payload.new_employee || {};
+  const created = await createEmployeeAtBranch(branch, {
+    email: normalizedEmail,
+    firstName: newEmployee.firstName || newEmployee.first_name || payload.firstName || payload.first_name,
+    lastName: newEmployee.lastName || newEmployee.last_name || payload.lastName || payload.last_name,
+    phone: newEmployee.phone || payload.phone,
+    jobTitle: newEmployee.jobTitle || newEmployee.job_title || payload.jobTitle || payload.job_title,
+    employeeCode: newEmployee.employeeCode || newEmployee.employee_code || payload.employeeCode,
+  });
+
+  return { employee: created.employee, employeeCreated: created.created };
 }
 
 async function findProductBySerial(serialNumber) {
@@ -123,7 +250,9 @@ export async function enrollPresenceDevice(payload = {}) {
     throw httpError(400, 'Serial number is required.');
   }
 
-  const { branch, employee } = await lookupSetupEmployee({ branchId, email });
+  const branchRow = await getActiveBranch(branchId);
+  const branch = mapBranchRow(branchRow);
+  const { employee, employeeCreated } = await resolveEmployeeForEnroll(branchRow, payload);
 
   let product = await findProductBySerial(serialNumber);
   let created = false;
@@ -187,7 +316,6 @@ export async function enrollPresenceDevice(payload = {}) {
     agentVersion,
   });
 
-  // Employee devices keep branch on the employee record — stamp branch on presence for the dashboard.
   await pool.query(
     `UPDATE device_presence
      SET employee_id = ?, branch_id = ?
@@ -219,6 +347,7 @@ export async function enrollPresenceDevice(payload = {}) {
 
   return {
     created,
+    employeeCreated,
     machineId,
     branch,
     employee,

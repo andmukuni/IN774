@@ -265,9 +265,10 @@ while (-not $branch) {
 }
 Write-Ok "Branch: $($branch.name)"
 
-# 3) Employee email lookup
+# 3) Employee email lookup / register
 Write-Step "Employee lookup"
 $employee = $null
+$newEmployee = $null
 while (-not $employee) {
   $email = Read-Host "Enter your work email"
   $email = $email.Trim()
@@ -280,13 +281,53 @@ while (-not $employee) {
       branchId = $branch.id
       email = $email
     }
-    $employee = $lookup.data.employee
-    Write-Ok ("Found: {0} ({1})" -f $employee.fullName, $employee.employeeCode)
   }
   catch {
     Write-Err $_.Exception.Message
-    Write-Host "  Try again with the email registered for this branch."
+    continue
   }
+
+  if ($lookup.data.found -and $lookup.data.employee) {
+    $employee = $lookup.data.employee
+    if ($lookup.data.matchedOtherBranch) {
+      Write-Warn ("Found at another branch ({0}). Will move to {1}." -f $employee.branchName, $branch.name)
+    }
+    Write-Ok ("Found: {0} ({1})" -f $employee.fullName, $employee.employeeCode)
+    continue
+  }
+
+  Write-Warn ("No employee found for {0}." -f $lookup.data.email)
+  $register = Read-Host "Register as a new employee at this branch? (Y/n)"
+  if ($register -and $register.Trim().ToLower() -eq 'n') {
+    Write-Host "  Enter a different email, or type Ctrl+C to cancel."
+    continue
+  }
+
+  $firstName = ''
+  $lastName = ''
+  while (-not $firstName) {
+    $firstName = (Read-Host "First name").Trim()
+    if (-not $firstName) { Write-Warn "First name is required." }
+  }
+  while (-not $lastName) {
+    $lastName = (Read-Host "Last name").Trim()
+    if (-not $lastName) { Write-Warn "Last name is required." }
+  }
+  $phone = (Read-Host "Phone (optional)").Trim()
+  $jobTitle = (Read-Host "Job title (optional)").Trim()
+
+  $newEmployee = @{
+    firstName = $firstName
+    lastName = $lastName
+    phone = $phone
+    jobTitle = $jobTitle
+  }
+  $employee = @{
+    email = $lookup.data.email
+    fullName = "$firstName $lastName"
+    employeeCode = '(new)'
+  }
+  Write-Ok ("Will register: {0} <{1}>" -f $employee.fullName, $employee.email)
 }
 
 # 4) BIOS serial
@@ -336,7 +377,7 @@ $loggedInUser = Get-LoggedInUser
 $localIp = Get-PrimaryIPv4
 
 try {
-  $enroll = Invoke-GflApi -Method POST -Url "$apiBase/presence/setup/enroll" -ApiKey $apiKey -Body @{
+  $enrollBody = @{
     branchId = $branch.id
     email = $employee.email
     serialNumber = $serial
@@ -348,18 +389,28 @@ try {
     agentVersion = $AgentVersion
     deviceType = $deviceType
   }
+  if ($null -ne $newEmployee) {
+    $enrollBody.newEmployee = $newEmployee
+  }
+  $enroll = Invoke-GflApi -Method POST -Url "$apiBase/presence/setup/enroll" -ApiKey $apiKey -Body $enrollBody
 }
 catch {
   Write-Err "Enroll failed: $($_.Exception.Message)"
   exit 1
 }
 
+if ([bool]$enroll.data.employeeCreated) {
+  Write-Ok "Registered new employee: $($enroll.data.employee.fullName)"
+}
+
 $created = [bool]$enroll.data.created
+$displayName = $enroll.data.employee.fullName
+if (-not $displayName) { $displayName = $employee.fullName }
 if ($created) {
-  Write-Ok "Created new inventory asset and assigned to $($employee.fullName)"
+  Write-Ok "Created new inventory asset and assigned to $displayName"
 }
 else {
-  Write-Ok "Linked existing asset to $($employee.fullName)"
+  Write-Ok "Linked existing asset to $displayName"
 }
 if ($enroll.data.product) {
   Write-Host ("  Product: {0} [{1}]" -f $enroll.data.product.name, $enroll.data.product.sku)
@@ -415,7 +466,7 @@ Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 Write-Host "  Setup complete" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
-Write-Host "  Employee : $($employee.fullName)"
+Write-Host "  Employee : $displayName$(if ([bool]$enroll.data.employeeCreated) { ' (newly registered)' } else { '' })"
 Write-Host "  Branch   : $($branch.name)"
 Write-Host "  Serial   : $serial"
 Write-Host "  Hostname : $hostname"

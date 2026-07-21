@@ -8,4 +8,5 @@ uploads/*
 !uploads/.gitkeep
 *.log
 agent/GFLPresence.exe
+agent/config.json
 agent/go.sum

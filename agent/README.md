@@ -18,7 +18,7 @@ Regenerate after edits: `npm run docs:presence-pdf`
 - Windows 10 or later
 - Outbound HTTPS access to your FormGFL server
 - A FormGFL API key with **`presence.report`** and **`presence.enroll`** scopes
-- Employee email already exists in FormGFL for the selected branch
+- Work email for the person using the PC (created automatically during install if it does not exist yet)
 
 ## Server setup (FormGFL admin)
 
@@ -79,7 +79,7 @@ Create `config.json` from [`config.example.json`](config.example.json):
 2. Approve the UAC prompt
 3. Answer the wizard prompts:
    - Select your **branch** (list loaded from FormGFL)
-   - Enter your **employee email** (must exist for that branch)
+   - Enter your **employee email** (registers a new employee if not found — asks for name)
    - Confirm the detected **BIOS serial** (or type it manually)
    - Choose device type if creating a new asset (`Laptop` / `Desktop` / `All-in-One`)
 4. The script will:
@@ -186,7 +186,7 @@ Recommended config path: `C:\ProgramData\GFLPresence\config.json`
 | Service won't start | Run `GFLPresence.exe run` in CMD to see errors; check config path and JSON syntax |
 | 401 Unauthorized | Verify API key has `presence.report` and (for installer) `presence.enroll` |
 | 403 IP not whitelisted | Presence endpoints skip IP checks; for other scopes set whitelist to `*` |
-| Employee not found | Email must exist for the selected branch in FormGFL |
+| Employee not found | Installer can register a new employee (first/last name) at the selected branch |
 | Device not linked | Re-run the CMD installer, or ensure product SKU matches BIOS serial |
 | PC shows offline | Check network/firewall allows outbound HTTPS; default interval is 5 min, offline threshold is 15 min |
 
