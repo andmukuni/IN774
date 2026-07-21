@@ -357,23 +357,26 @@ export default function MonitorListPage() {
           { label: 'Monitor' },
         ]}
         actions={(
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <LoadingButton
               type="button"
               loading={refreshing}
+              loadingLabel=""
               onClick={() => loadTargets(true)}
-              className="px-4 py-2 rounded-xl border border-navy-200 text-sm font-medium text-navy-700 hover:bg-navy-50"
+              title="Refresh"
+              aria-label="Refresh"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-navy-200 text-navy-700 hover:bg-navy-50"
             >
               <RefreshCw size={16} />
-              Refresh
             </LoadingButton>
             {canManage && (
               <Link
                 to="/admin/monitor/new"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
+                title="Add target"
+                aria-label="Add target"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white transition-colors"
               >
                 <PlusCircle size={16} />
-                Add target
               </Link>
             )}
           </div>

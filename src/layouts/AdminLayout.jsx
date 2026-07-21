@@ -209,11 +209,11 @@ function AdminTopBar({ user, onOpenSidebar }) {
           href="/intake"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-cyan-800 hover:bg-cyan-100 transition-colors"
-          title="Open public branch equipment form"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-800 hover:bg-cyan-100 transition-colors"
+          title="Branch report"
+          aria-label="Branch report"
         >
-          <ExternalLink size={14} />
-          <span className="hidden sm:inline">Branch report</span>
+          <ExternalLink size={16} />
         </a>
         <ThemeToggle variant="admin" />
         <AdminUserMenu />
