@@ -300,8 +300,9 @@ For organization-wide deployment, use one of these methods:
 | 403 IP not whitelisted | Set API key whitelist to `0.0.0.0/0` in Admin → Developer |
 | Employee not found | Email must exist for the selected branch in FormGFL |
 | Device not linked to employee | Re-run `Install-GFLPresence.cmd` as Administrator |
-| PC shows offline | Check network/firewall allows outbound HTTPS; heartbeat every 2 min, offline after ~3 min |
-| Still online after holding power button | Expected until the 3-minute missed-heartbeat timeout (hard power-off cannot send goodbye) |
+| PC shows offline | Check network/firewall allows outbound HTTPS; heartbeat every 2 min, offline after ~8 min |
+| Still online after holding power button | Expected until the 8-minute missed-heartbeat timeout (hard power-off cannot send goodbye) |
+| Flickers offline while PC is on | Offline threshold must be above heartbeat interval — default is 8 minutes |
 | PC not appearing at all | Confirm service is running; check Event Viewer for errors |
 
 ---

@@ -189,8 +189,9 @@ Recommended config path: `C:\ProgramData\GFLPresence\config.json`
 | 403 IP not whitelisted | Presence endpoints skip IP checks; for other scopes set whitelist to `*` |
 | Employee not found | Installer can register a new employee (first/last name) at the selected branch |
 | Device not linked | Re-run the CMD installer, or ensure product SKU matches BIOS serial |
-| PC shows offline | Check network/firewall allows outbound HTTPS; default interval is 2 min, offline threshold is 3 min |
-| Still online after force power-off | Wait for the 3-minute missed-heartbeat window (use agent 1.2+ with 2-min heartbeats) |
+| PC shows offline | Check network/firewall allows outbound HTTPS; default interval is 2 min, offline threshold is 8 min |
+| Still online after force power-off | Wait for the 8-minute missed-heartbeat window (hard power-off cannot send goodbye) |
+| Flickers offline while PC is on | Threshold must be greater than heartbeat interval; use 8 min (not 3) |
 
 ## API reference
 
