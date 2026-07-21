@@ -22,6 +22,18 @@ export function productStatusHtml(status) {
   return `<span class="dt-badge dt-badge-${badgeClass}">${escapeHtml(label)}</span>`;
 }
 
+/** PC agent presence: online / offline / not enrolled */
+export function presenceOnlineHtml(status) {
+  const key = String(status || '').toLowerCase();
+  if (key === 'online') {
+    return '<span class="dt-badge dt-badge-processed">Online</span>';
+  }
+  if (key === 'offline') {
+    return '<span class="dt-badge dt-badge-cancelled">Offline</span>';
+  }
+  return '<span class="dt-badge dt-badge-draft">—</span>';
+}
+
 export function skuHtml(sku, name) {
   const code = escapeHtml(sku || '—');
   const title = escapeHtml(name || '');

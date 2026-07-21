@@ -26,6 +26,7 @@ import { getAdminAuthHeaders } from '../../utils/authHeaders';
 import { formatDate } from '../../utils/helpers';
 import {
   productStatusHtml,
+  presenceOnlineHtml,
   skuHtml,
   qtyHtml,
   dateHtml,
@@ -160,6 +161,13 @@ export default function EmployeeShowPage() {
       key: 'status',
       label: 'Status',
       render: (_, row) => productStatusHtml(row.status),
+    },
+    {
+      key: 'presenceOnlineStatus',
+      label: 'PC',
+      orderable: false,
+      sortable: false,
+      render: (_, row) => presenceOnlineHtml(row.presenceOnlineStatus),
     },
     {
       key: 'updatedAt',

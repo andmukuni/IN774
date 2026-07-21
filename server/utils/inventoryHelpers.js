@@ -18,6 +18,9 @@ export function mapProductRow(row = {}) {
   const firstName = row.employee_first_name || '';
   const lastName = row.employee_last_name || '';
   const employeeName = [firstName, lastName].filter(Boolean).join(' ').trim();
+  const presenceOnlineStatus = row.presence_online_status
+    ? String(row.presence_online_status).toLowerCase()
+    : null;
   return {
     id: row.id,
     sku: row.sku,
@@ -38,6 +41,15 @@ export function mapProductRow(row = {}) {
     branchCode: row.branch_code || null,
     branchName: row.branch_name || null,
     updatedAt: row.updated_at,
+    presenceOnlineStatus: presenceOnlineStatus === 'online' || presenceOnlineStatus === 'offline'
+      ? presenceOnlineStatus
+      : null,
+    presenceLastHeartbeatAt: row.presence_last_heartbeat_at
+      ? new Date(row.presence_last_heartbeat_at).toISOString()
+      : null,
+    presenceStatusChangedAt: row.presence_status_changed_at
+      ? new Date(row.presence_status_changed_at).toISOString()
+      : null,
   };
 }
 
@@ -51,6 +63,30 @@ export const PRODUCT_SELECT_FIELDS = `
   p.id, p.sku, p.name, p.category, p.brand_id, p.branch_id AS product_branch_id, p.quantity, p.reorder_level, p.unit_price, p.status, p.employee_id, p.updated_at,
   br.code AS brand_code, br.name AS brand_name,
   e.employee_code, e.first_name AS employee_first_name, e.last_name AS employee_last_name,
-  b.id AS branch_id, b.code AS branch_code, b.name AS branch_name
+  b.id AS branch_id, b.code AS branch_code, b.name AS branch_name,
+  (
+    SELECT dp.online_status
+    FROM device_presence dp
+    WHERE dp.product_id = p.id
+       OR (dp.serial_number <> '' AND dp.serial_number = p.sku)
+    ORDER BY (dp.product_id = p.id) DESC, dp.last_heartbeat_at DESC
+    LIMIT 1
+  ) AS presence_online_status,
+  (
+    SELECT dp.last_heartbeat_at
+    FROM device_presence dp
+    WHERE dp.product_id = p.id
+       OR (dp.serial_number <> '' AND dp.serial_number = p.sku)
+    ORDER BY (dp.product_id = p.id) DESC, dp.last_heartbeat_at DESC
+    LIMIT 1
+  ) AS presence_last_heartbeat_at,
+  (
+    SELECT dp.status_changed_at
+    FROM device_presence dp
+    WHERE dp.product_id = p.id
+       OR (dp.serial_number <> '' AND dp.serial_number = p.sku)
+    ORDER BY (dp.product_id = p.id) DESC, dp.last_heartbeat_at DESC
+    LIMIT 1
+  ) AS presence_status_changed_at
 `;
 
