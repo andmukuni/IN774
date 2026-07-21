@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -56,6 +57,8 @@ func loadConfig() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read config %s: %w", path, err)
 	}
+	// PowerShell Set-Content -Encoding UTF8 writes a BOM; strip it for json.Unmarshal.
+	raw = bytes.TrimPrefix(raw, []byte{0xEF, 0xBB, 0xBF})
 
 	var cfg Config
 	if err := json.Unmarshal(raw, &cfg); err != nil {

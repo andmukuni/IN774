@@ -15,7 +15,7 @@ cd /d "%~dp0"
 
 echo.
 echo ========================================
-echo   GFL Presence Agent Installer v1.1.0
+echo   GFL Presence Agent Installer v1.1.1
 echo ========================================
 echo.
 

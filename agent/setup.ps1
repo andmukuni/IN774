@@ -13,7 +13,7 @@ $ProgramDir = 'C:\Program Files\GFLPresence'
 $ConfigDir = 'C:\ProgramData\GFLPresence'
 $AgentExeName = 'GFLPresence.exe'
 $AgentVersion = '1.0.0'
-$InstallerVersion = '1.1.0'
+$InstallerVersion = '1.1.1'
 
 function Write-Step([string]$Message) {
   Write-Host ""
@@ -53,7 +53,10 @@ function Save-JsonFile([string]$Path, $Object) {
   if (-not (Test-Path $dir)) {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
   }
-  ($Object | ConvertTo-Json -Depth 6) | Set-Content -Path $Path -Encoding UTF8
+  # Windows PowerShell UTF8 encoding adds a BOM that breaks Go's json parser - write without BOM.
+  $json = $Object | ConvertTo-Json -Depth 6
+  $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+  [System.IO.File]::WriteAllText($Path, $json, $utf8NoBom)
 }
 
 function Get-ApiBaseUrl([string]$ApiUrl) {
@@ -444,9 +447,12 @@ Write-Ok "Wrote $ConfigDir\config.json"
 $exePath = Join-Path $ProgramDir $AgentExeName
 Push-Location $ProgramDir
 try {
-  # Stop/uninstall previous service if present (ignore failures)
-  & $exePath -service stop 2>$null | Out-Null
-  & $exePath -service uninstall 2>$null | Out-Null
+  # Stop/uninstall previous service if present (ignore failures / stderr noise)
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try { & $exePath -service stop 2>&1 | Out-Null } catch { }
+  try { & $exePath -service uninstall 2>&1 | Out-Null } catch { }
+  $ErrorActionPreference = $prevEap
 
   $installOut = & $exePath -service install 2>&1
   if ($LASTEXITCODE -ne 0) {
