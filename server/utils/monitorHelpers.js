@@ -589,12 +589,18 @@ export async function seedMonitorTargets() {
     envUrlKey: 'MONITOR_SEED_KENAC_APP_URL',
   });
 
-  await seedTcpMonitorTarget({
+  await seedMysqlMonitorTarget({
     name: 'Kenac DB Server',
-    host: '',
+    host: '84.247.188.115',
     port: 3306,
-    hostEnvKey: 'MONITOR_SEED_KENAC_DB_HOST',
-    portEnvKey: 'MONITOR_SEED_KENAC_DB_PORT',
+    user: 'mysql',
+    database: 'default',
+    passwordEnvKey: 'MONITOR_SEED_KENAC_MYSQL_PASSWORD',
+    passwordFallbackEnvKey: 'MONITOR_SEED_VOUCHER_MYSQL_PASSWORD',
+    hostEnvKey: 'MONITOR_SEED_KENAC_MYSQL_HOST',
+    portEnvKey: 'MONITOR_SEED_KENAC_MYSQL_PORT',
+    userEnvKey: 'MONITOR_SEED_KENAC_MYSQL_USER',
+    databaseEnvKey: 'MONITOR_SEED_KENAC_MYSQL_DATABASE',
   });
 
   await seedMysqlMonitorTarget({
@@ -692,12 +698,17 @@ async function seedMysqlMonitorTarget({
   user,
   database,
   passwordEnvKey,
+  passwordFallbackEnvKey = null,
   hostEnvKey,
   portEnvKey,
   userEnvKey,
   databaseEnvKey,
 }) {
-  const password = String(process.env[passwordEnvKey] || '').trim();
+  const password = String(
+    process.env[passwordEnvKey]
+    || (passwordFallbackEnvKey ? process.env[passwordFallbackEnvKey] : '')
+    || '',
+  ).trim();
   if (!password) {
     console.log(`[monitor] Skipped ${name} (set ${passwordEnvKey}).`);
     return;
