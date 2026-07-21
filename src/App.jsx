@@ -34,6 +34,9 @@ const UserFormPage = lazy(() => import('./pages/admin/UserFormPage'));
 const PublicLayout = lazy(() => import('./layouts/PublicLayout'));
 const BranchIntakePage = lazy(() => import('./pages/public/BranchIntakePage'));
 const DeveloperPage = lazy(() => import('./pages/admin/DeveloperPage'));
+const MonitorListPage = lazy(() => import('./pages/admin/MonitorListPage'));
+const MonitorFormPage = lazy(() => import('./pages/admin/MonitorFormPage'));
+const MonitorShowPage = lazy(() => import('./pages/admin/MonitorShowPage'));
 
 function RouteLoader() {
   return (
@@ -145,6 +148,10 @@ export default function App() {
               <Route path="users/:id/edit" element={<UserFormPage />} />
               <Route path="users/:id" element={<UserShowPage />} />
               <Route path="settings" element={<SystemSettingsPage />} />
+              <Route path="monitor" element={<MonitorListPage />} />
+              <Route path="monitor/new" element={<MonitorFormPage />} />
+              <Route path="monitor/:id/edit" element={<MonitorFormPage />} />
+              <Route path="monitor/:id" element={<MonitorShowPage />} />
               <Route path="developer" element={<DeveloperPage />} />
               <Route path="access-control" element={<DemoAccessControlPage />} />
             </Route>

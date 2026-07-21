@@ -6,6 +6,9 @@ import { useToast } from '../../context/ToastContext';
 import { LoadingButton } from '../../components/ui';
 import { purgeInvalidAuthState } from '../../utils/authHeaders';
 import { useCompany } from '../../context/CompanyContext';
+import { CACHED_STATIC_ASSETS, warmLoginHeroAsset } from '../../utils/staticAssetCache';
+
+const LOGIN_HERO_SRC = CACHED_STATIC_ASSETS.loginHero;
 
 export default function LoginPage() {
   const { companyName } = useCompany();
@@ -22,6 +25,19 @@ export default function LoginPage() {
 
   useEffect(() => {
     purgeInvalidAuthState();
+  }, []);
+
+  useEffect(() => {
+    const preload = document.createElement('link');
+    preload.rel = 'preload';
+    preload.as = 'image';
+    preload.href = LOGIN_HERO_SRC;
+    preload.type = 'image/webp';
+    document.head.appendChild(preload);
+    warmLoginHeroAsset();
+    return () => {
+      preload.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -50,7 +66,16 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       <aside className="relative hidden lg:flex lg:w-1/2 xl:w-[55%] min-h-screen overflow-hidden bg-gradient-to-br from-navy-950 via-navy-900 to-cyan-900">
-        <div className="absolute inset-0 bg-gradient-to-br from-navy-950/80 via-navy-900/65 to-cyan-900/40" />
+        <img
+          src={LOGIN_HERO_SRC}
+          alt=""
+          width={720}
+          height={1080}
+          decoding="async"
+          fetchPriority="high"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-navy-950/75 via-navy-900/55 to-cyan-900/35" />
         <div className="relative z-10 flex min-h-screen flex-col items-center justify-center p-10 xl:p-14">
           <h1 className="text-5xl xl:text-6xl font-black text-white uppercase text-center leading-tight">
             {companyName}

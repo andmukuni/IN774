@@ -19,7 +19,9 @@ import { createAdminRouter } from './routes/admin.js';
 import { createPublicRouter } from './routes/public.js';
 import { createExternalRouter } from './routes/external.js';
 import { createDeveloperRouter } from './routes/developer.js';
+import { createMonitorRouter } from './routes/monitor.js';
 import { loadBrandedIndexHtml } from './utils/htmlMetaHelpers.js';
+import { startMonitorScheduler } from './utils/monitorScheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
@@ -135,11 +137,25 @@ app.use('/api', createHealthRouter());
 app.use('/api/auth', createAuthRouter({ authService }));
 app.use('/api/v1', createExternalRouter());
 app.use('/api/admin/developer', createDeveloperRouter());
+app.use('/api/admin/monitor', createMonitorRouter());
 app.use('/api/admin', createAdminRouter());
 app.use('/api/public', createPublicRouter());
 
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 app.use('/uploads', express.static(uploadsDir));
+
+const LONG_LIVED_STATIC = /\.(?:webp|avif|png|jpe?g|gif|svg|ico|woff2?|css|js|map)$/i;
+
+function setStaticCacheHeaders(res, filePath) {
+  if (filePath.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-cache');
+    return;
+  }
+  if (LONG_LIVED_STATIC.test(filePath)) {
+    // Fingerprinted Vite assets + tiny public images (e.g. login hero)
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+}
 
 async function startHttpServer() {
   await fs.mkdir(uploadsDir, { recursive: true });
@@ -148,10 +164,14 @@ async function startHttpServer() {
   if (IS_PRODUCTION) {
     try {
       await fs.access(distDir);
-      app.use(express.static(distDir, { index: false }));
+      app.use(express.static(distDir, {
+        index: false,
+        setHeaders: setStaticCacheHeaders,
+      }));
       app.get(/^(?!\/api|\/uploads).*/, async (_req, res, next) => {
         try {
           const html = await loadBrandedIndexHtml(distDir);
+          res.setHeader('Cache-Control', 'no-cache');
           res.type('html').send(html);
         } catch (error) {
           next(error);
@@ -170,6 +190,7 @@ async function startHttpServer() {
 
 async function main() {
   await bootstrapDatabase();
+  startMonitorScheduler();
   await startHttpServer();
 }
 
