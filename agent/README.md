@@ -17,9 +17,19 @@ Lightweight Windows Service that reports PC online status to FormGFL. Each heart
 
 ## Server setup (FormGFL admin)
 
+**Option A — CLI (from the FormGFL project root):**
+
+```bash
+npm run seed:presence-key
+```
+
+This creates a key named **GFL Presence Agent** with scope `presence.report` and whitelist `0.0.0.0/0` (allows all office PCs). The raw key is printed once.
+
+**Option B — Admin UI:**
+
 1. Sign in to FormGFL admin → **Developer → API Integrations**
 2. Create a new API key with scope **`presence.report`**
-3. Leave the IP whitelist **empty** (office PCs use dynamic/private IPs)
+3. Set IP whitelist to **`0.0.0.0/0`** (office PCs use dynamic/private IPs; the app requires at least one whitelist entry)
 4. Copy the generated key (`gfl_...`)
 
 View reported devices under **System → Devices Online** in the admin panel.
@@ -28,20 +38,29 @@ View reported devices under **System → Devices Online** in the admin panel.
 
 ### 1. Build the agent (on a dev machine)
 
+From the FormGFL project root:
+
+```bash
+npm run agent:build
+```
+
+Output: `agent/GFLPresence.exe`
+
+Or manually:
+
 ```powershell
 cd agent
 go mod tidy
 $env:GOOS="windows"
 $env:GOARCH="amd64"
-go build -o GFLPresence.exe .
+go build -ldflags="-s -w" -o GFLPresence.exe .
 ```
 
 On macOS/Linux for cross-compile:
 
 ```bash
 cd agent
-go mod tidy
-GOOS=windows GOARCH=amd64 go build -o GFLPresence.exe .
+bash build.sh
 ```
 
 ### 2. Copy files to the PC

@@ -16,7 +16,9 @@
     "deploy:coolify:preflight:db": "node scripts/coolify-preflight.mjs --test-db",
     "deploy:coolify:verify": "bash scripts/verify-coolify-deploy.sh",
     "deploy:coolify:postdeploy": "bash scripts/coolify-postdeploy.sh",
-    "seed:remote": "node scripts/seed-remote.mjs"
+    "seed:remote": "node scripts/seed-remote.mjs",
+    "seed:presence-key": "node scripts/seed-presence-key.mjs",
+    "agent:build": "bash agent/build.sh"
   },
   "dependencies": {
     "cors": "^2.8.6",

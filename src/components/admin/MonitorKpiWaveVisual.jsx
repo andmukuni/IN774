@@ -50,7 +50,7 @@ function sparklineFromHistory(history, width, height, { invert = false } = {}) {
     const x = (index / (samples.length - 1)) * width;
     const normalized = (value - min) / range;
     const plotted = invert ? 1 - normalized : normalized;
-    const y = height - 6 - plotted * (height - 14);
+    const y = height - 4 - plotted * (height - 10);
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
 }
@@ -74,15 +74,15 @@ export default function MonitorKpiWaveVisual({
 
   const palette = WAVE_COLORS[color] || WAVE_COLORS.cyan;
   const width = 240;
-  const height = 44;
-  const baseline = 18;
+  const height = 28;
+  const baseline = 14;
 
   const stress = useMemo(
     () => computeStress(variant, { percent, up, total, issues }),
     [variant, percent, up, total, issues],
   );
 
-  const amplitude = 2 + stress * 14;
+  const amplitude = 1 + stress * 8;
   const speed = streamConnected ? 0.045 : 0.02;
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function MonitorKpiWaveVisual({
   const sampleLabel = history.length > 1 ? `${history.length} samples` : 'sampling…';
 
   return (
-    <div className="relative mt-2 -mx-1 h-11 overflow-hidden rounded-lg bg-gradient-to-t from-navy-50/80 to-transparent">
+    <div className="relative mt-1.5 -mx-0.5 h-7 overflow-hidden rounded-md bg-gradient-to-t from-navy-50/70 to-transparent">
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
@@ -176,11 +176,11 @@ export default function MonitorKpiWaveVisual({
         )}
       </svg>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between px-1.5 pb-0.5">
-        <span className={`text-[9px] font-medium uppercase tracking-wide ${streamConnected ? 'text-cyan-600' : 'text-amber-600'}`}>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between px-1 pb-px">
+        <span className={`text-[8px] font-medium uppercase tracking-wide leading-none ${streamConnected ? 'text-cyan-600' : 'text-amber-600'}`}>
           {streamConnected ? 'SSE live' : 'SSE reconnecting'}
         </span>
-        <span className="text-[9px] tabular-nums text-navy-400">
+        <span className="text-[8px] tabular-nums leading-none text-navy-400">
           {meta || sampleLabel}
         </span>
       </div>

@@ -80,21 +80,23 @@ function MonitorKpiCard({
 
   const content = (
     <div
-      className={`app-card h-full min-h-28 bg-white rounded-xl border border-navy-100 p-3 hover:shadow-md transition-all duration-500 ${entered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
+      className={`app-card h-full bg-white rounded-xl border border-navy-100 p-2.5 hover:shadow-md transition-all duration-500 ${entered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
       style={{ transitionDelay: `${animationDelay}ms` }}
     >
-      <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between mb-1.5">
+      <div className="flex flex-col">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-lg font-bold leading-tight text-navy-900 tabular-nums">{displayValue}</div>
+            <div className="text-[11px] font-medium text-navy-500 leading-tight">{label}</div>
+          </div>
           {Icon && (
-            <div className={`p-1.5 rounded-lg ${COLOR_MAP[color] || COLOR_MAP.cyan}`}>
-              <Icon size={16} />
+            <div className={`shrink-0 p-1 rounded-md ${COLOR_MAP[color] || COLOR_MAP.cyan}`}>
+              <Icon size={14} />
             </div>
           )}
         </div>
-        <div className="text-xl font-bold text-navy-900 tabular-nums">{displayValue}</div>
-        <div className="text-xs text-navy-500 mt-0.5">{label}</div>
         {subtitle && (
-          <div className="text-[11px] text-navy-400 mt-0.5 min-h-[1.75rem] line-clamp-2">{subtitle}</div>
+          <div className="text-[10px] text-navy-400 mt-0.5 line-clamp-1 leading-tight">{subtitle}</div>
         )}
         {visual}
       </div>
@@ -217,10 +219,11 @@ export default function MonitorDashboardKpis() {
       {!loaded ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="animate-pulse rounded-xl border border-navy-100 bg-white p-3 min-h-28">
-              <div className="h-10 w-10 bg-navy-100 rounded-lg mb-3" />
-              <div className="h-7 bg-navy-100 rounded w-1/3 mb-2" />
-              <div className="h-3 bg-navy-100 rounded w-2/3" />
+            <div key={i} className="animate-pulse rounded-xl border border-navy-100 bg-white p-2.5 min-h-[88px]">
+              <div className="h-8 w-8 bg-navy-100 rounded-md mb-2 ml-auto" />
+              <div className="h-6 bg-navy-100 rounded w-1/3 mb-1" />
+              <div className="h-3 bg-navy-100 rounded w-2/3 mb-2" />
+              <div className="h-7 bg-navy-100 rounded w-full" />
             </div>
           ))}
         </div>
