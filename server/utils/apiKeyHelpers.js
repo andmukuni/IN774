@@ -32,7 +32,7 @@ function parseJsonArray(value, fallback = []) {
 }
 
 export function normalizeIpWhitelist(input) {
-  return parseJsonArray(input);
+  return parseJsonArray(input).filter((entry) => !String(entry).trim().startsWith('#'));
 }
 
 export function normalizeApiKeyScopes(input) {
@@ -109,11 +109,8 @@ export async function createApiKey({
 
   const normalizedScopes = normalizeApiKeyScopes(scopes);
   const normalizedWhitelist = normalizeIpWhitelist(ipWhitelist);
-  if (!normalizedWhitelist.length) {
-    const err = new Error('At least one IP address or CIDR range is required for server whitelisting.');
-    err.status = 400;
-    throw err;
-  }
+  // Empty whitelist means allow any IP (useful for PC presence agents across sites).
+  const storedWhitelist = normalizedWhitelist.length ? normalizedWhitelist : ['*'];
 
   const rawKey = generateRawApiKey();
   const keyPrefix = rawKey.slice(0, 12);
@@ -128,7 +125,7 @@ export async function createApiKey({
       keyPrefix,
       hashApiKey(rawKey),
       JSON.stringify(normalizedScopes),
-      JSON.stringify(normalizedWhitelist),
+      JSON.stringify(storedWhitelist),
       createdBy,
       expiresAt || null,
     ],
@@ -179,13 +176,9 @@ export async function updateApiKey(id, { name, scopes, ipWhitelist, status }) {
 
   if (ipWhitelist != null) {
     const normalizedWhitelist = normalizeIpWhitelist(ipWhitelist);
-    if (!normalizedWhitelist.length) {
-      const err = new Error('At least one IP address or CIDR range is required for server whitelisting.');
-      err.status = 400;
-      throw err;
-    }
+    const storedWhitelist = normalizedWhitelist.length ? normalizedWhitelist : ['*'];
     updates.push('ip_whitelist = ?');
-    params.push(JSON.stringify(normalizedWhitelist));
+    params.push(JSON.stringify(storedWhitelist));
   }
 
   if (status != null) {
@@ -333,9 +326,13 @@ export function getClientIp(req, { trustProxy = false } = {}) {
 }
 
 export function isIpAllowed(clientIp, whitelist = []) {
-  const ip = normalizeIpAddress(clientIp);
   const entries = (whitelist || []).map((value) => normalizeIpAddress(value)).filter(Boolean);
-  if (!entries.length) return false;
+
+  // Empty list or explicit allow-all markers → any client IP may use this key.
+  if (!entries.length) return true;
+  if (entries.some((entry) => isAllowAllIpEntry(entry))) return true;
+
+  const ip = normalizeIpAddress(clientIp);
   if (!ip) return false;
 
   for (const entry of entries) {
@@ -347,4 +344,9 @@ export function isIpAllowed(clientIp, whitelist = []) {
   }
 
   return false;
+}
+
+function isAllowAllIpEntry(entry) {
+  const value = String(entry || '').trim().toLowerCase();
+  return value === '*' || value === 'any' || value === '0.0.0.0/0' || value === '::/0';
 }

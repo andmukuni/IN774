@@ -28,13 +28,13 @@ Regenerate after edits: `npm run docs:presence-pdf`
 npm run seed:presence-key
 ```
 
-This creates a key named **GFL Presence Agent** with scopes `presence.report` + `presence.enroll` and whitelist `0.0.0.0/0` (allows all office PCs). The raw key is printed once.
+This creates a key named **GFL Presence Agent** with scopes `presence.report` + `presence.enroll` and whitelist `*` (any IP — PCs can enroll from any network). The raw key is printed once.
 
 **Option B — Admin UI:**
 
 1. Sign in to FormGFL admin → **Developer → API Integrations**
 2. Create a new API key with scopes **`presence.report`** and **`presence.enroll`**
-3. Set IP whitelist to **`0.0.0.0/0`** (office PCs use dynamic/private IPs; the app requires at least one whitelist entry)
+3. Set IP whitelist to **`*`** (or leave blank) so PCs on any network can connect — presence endpoints also skip IP checks when the API key is valid
 4. Copy the generated key (`gfl_...`)
 
 View reported devices under **System → Devices Online** in the admin panel.
@@ -185,7 +185,7 @@ Recommended config path: `C:\ProgramData\GFLPresence\config.json`
 |-------|-----|
 | Service won't start | Run `GFLPresence.exe run` in CMD to see errors; check config path and JSON syntax |
 | 401 Unauthorized | Verify API key has `presence.report` and (for installer) `presence.enroll` |
-| 403 IP not whitelisted | Set API key whitelist to `0.0.0.0/0` in Admin → Developer |
+| 403 IP not whitelisted | Presence endpoints skip IP checks; for other scopes set whitelist to `*` |
 | Employee not found | Email must exist for the selected branch in FormGFL |
 | Device not linked | Re-run the CMD installer, or ensure product SKU matches BIOS serial |
 | PC shows offline | Check network/firewall allows outbound HTTPS; default interval is 5 min, offline threshold is 15 min |

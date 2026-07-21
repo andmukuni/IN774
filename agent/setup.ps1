@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   Interactive GFL Presence agent setup wizard for Windows.
@@ -185,7 +185,7 @@ function Ensure-MachineId([string]$Dir) {
 # --- Main -------------------------------------------------------------------
 
 Write-Host ""
-Write-Host "GFL Presence Agent — Setup Wizard" -ForegroundColor White
+Write-Host "GFL Presence Agent - Setup Wizard" -ForegroundColor White
 Write-Host "This will enroll this PC in FormGFL and install the online monitoring service."
 Write-Host ""
 
@@ -218,7 +218,7 @@ if (-not $apiUrl -or -not $apiKey) {
   exit 1
 }
 if ($apiKey -notlike 'gfl_*') {
-  Write-Warn "API key does not start with gfl_ — continuing anyway."
+  Write-Warn "API key does not start with gfl_ - continuing anyway."
 }
 
 $apiBase = Get-ApiBaseUrl $apiUrl
@@ -248,7 +248,7 @@ for ($i = 0; $i -lt $branches.Count; $i++) {
   $b = $branches[$i]
   $label = "{0}. {1}" -f ($i + 1), $b.name
   if ($b.code) { $label += " [$($b.code)]" }
-  if ($b.city) { $label += " — $($b.city)" }
+  if ($b.city) { $label += " - $($b.city)" }
   Write-Host "  $label"
 }
 
@@ -421,6 +421,6 @@ Write-Host "  Serial   : $serial"
 Write-Host "  Hostname : $hostname"
 Write-Host "  Asset    : $(if ($created) { 'Created' } else { 'Linked existing' })"
 Write-Host ""
-Write-Host "  Open FormGFL Admin → Devices Online to confirm this PC."
+Write-Host "  Open FormGFL Admin -> Devices Online to confirm this PC."
 Write-Host ""
 exit 0

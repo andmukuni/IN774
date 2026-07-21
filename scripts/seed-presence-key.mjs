@@ -44,7 +44,7 @@ if (existing) {
 const data = await createApiKey({
   name: KEY_NAME,
   scopes: REQUIRED_SCOPES,
-  ipWhitelist: ['0.0.0.0/0'],
+  ipWhitelist: ['*'],
   createdBy: 'seed-presence-key',
 });
 

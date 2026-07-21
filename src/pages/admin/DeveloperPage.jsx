@@ -377,10 +377,13 @@ export default function DeveloperPage() {
                       <p className="font-medium">Server whitelisting</p>
                     </div>
                     <p>
-                      Each API key requires allowed server IPs or CIDR ranges
+                      By default each API key can restrict allowed server IPs or CIDR ranges
                       (for example <code>203.0.113.10</code> or <code>198.51.100.0/24</code>).
-                      Requests from other IPs are rejected. Call
-                      <code>GET /api/v1/ip-check</code> with your API key to see the exact IP the server detects.
+                      Use <code>*</code> (or leave blank) to allow <strong>any IP</strong> — required for
+                      PC presence agents that run from different offices/networks.
+                      Presence endpoints (<code>presence.report</code> / <code>presence.enroll</code>)
+                      always skip IP checks and rely on the API key alone.
+                      Call <code>GET /api/v1/ip-check</code> with your API key to see the IP the server detects.
                     </p>
                   </div>
 
@@ -432,10 +435,11 @@ export default function DeveloperPage() {
                               className="min-h-[88px] w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
                               value={form.ipWhitelist}
                               onChange={(e) => setForm((p) => ({ ...p, ipWhitelist: e.target.value }))}
-                              placeholder={'203.0.113.10\n198.51.100.0/24'}
-                              required
+                              placeholder={'*\n# or restrict:\n# 203.0.113.10\n# 198.51.100.0/24'}
                             />
-                            <span className="mt-1 block text-xs text-navy-500">One IP or CIDR per line.</span>
+                            <span className="mt-1 block text-xs text-navy-500">
+                              One IP or CIDR per line. Use <code>*</code> or leave blank to allow any IP (recommended for presence agents).
+                            </span>
                           </label>
 
                           <div>

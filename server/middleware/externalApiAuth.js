@@ -25,10 +25,12 @@ export function createExternalApiAuth(requiredScope) {
       }
 
       const clientIp = getClientIp(req, { trustProxy: TRUST_PROXY });
-      if (!isIpAllowed(clientIp, apiKey.ipWhitelist)) {
+      // Presence agent/installer runs from many office networks — auth is the API key only.
+      const skipIpWhitelist = String(requiredScope || '').startsWith('presence.');
+      if (!skipIpWhitelist && !isIpAllowed(clientIp, apiKey.ipWhitelist)) {
         return res.status(403).json({
           ok: false,
-          message: `Request IP is not whitelisted for this API key. Detected IP: ${clientIp || 'unknown'}. Add this IP (or its CIDR range) to the key whitelist in Admin → Developer.`,
+          message: `Request IP is not whitelisted for this API key. Detected IP: ${clientIp || 'unknown'}. Add this IP (or its CIDR range) to the key whitelist in Admin → Developer. Use * or 0.0.0.0/0 to allow any IP.`,
         });
       }
 
