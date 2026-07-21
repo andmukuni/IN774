@@ -7,3 +7,5 @@ dist
 uploads/*
 !uploads/.gitkeep
 *.log
+agent/GFLPresence.exe
+agent/go.sum

@@ -167,6 +167,9 @@ export function resolveRouteAdminPermission(req) {
   if (path.startsWith('/admin/monitor') || path.startsWith('/monitor')) {
     return method === 'GET' ? 'monitor.view' : 'monitor.manage';
   }
+  if (path.startsWith('/admin/presence') || path.startsWith('/presence')) {
+    return 'presence.view';
+  }
   if (path.startsWith('/admin/rbac') || path.startsWith('/rbac')) return 'rbac.manage';
   if (path.startsWith('/admin/settings') || path.startsWith('/settings')) return 'settings.manage';
   if (path.startsWith('/admin/users') || path.startsWith('/users')) return method === 'GET' ? 'users.view' : 'users.manage';

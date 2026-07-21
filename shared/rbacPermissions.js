@@ -18,6 +18,7 @@ export const ADMIN_PERMISSIONS = [
   { key: 'rbac.manage', name: 'Manage roles & permissions', group: 'System' },
   { key: 'monitor.view', name: 'View servers & DB monitor', group: 'System' },
   { key: 'monitor.manage', name: 'Manage servers & DB monitor', group: 'System' },
+  { key: 'presence.view', name: 'View PC presence', group: 'System' },
   { key: 'developer.view', name: 'View developer tools', group: 'Developer' },
   { key: 'developer.manage', name: 'Manage external API keys', group: 'Developer' },
 ];
@@ -67,6 +68,7 @@ export const NAV_PERMISSION_MAP = {
   settings: 'settings.manage',
   monitor: 'monitor.view',
   'monitor-create': 'monitor.manage',
+  presence: 'presence.view',
   'access-control': 'rbac.manage',
   developer: 'developer.view',
   'developer-api': 'developer.manage',

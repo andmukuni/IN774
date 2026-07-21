@@ -20,8 +20,10 @@ import { createPublicRouter } from './routes/public.js';
 import { createExternalRouter } from './routes/external.js';
 import { createDeveloperRouter } from './routes/developer.js';
 import { createMonitorRouter } from './routes/monitor.js';
+import { createPresenceRouter } from './routes/presence.js';
 import { loadBrandedIndexHtml } from './utils/htmlMetaHelpers.js';
 import { startMonitorScheduler } from './utils/monitorScheduler.js';
+import { startPresenceScheduler } from './utils/presenceScheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
@@ -138,6 +140,7 @@ app.use('/api/auth', createAuthRouter({ authService }));
 app.use('/api/v1', createExternalRouter());
 app.use('/api/admin/developer', createDeveloperRouter());
 app.use('/api/admin/monitor', createMonitorRouter());
+app.use('/api/admin/presence', createPresenceRouter());
 app.use('/api/admin', createAdminRouter());
 app.use('/api/public', createPublicRouter());
 
@@ -191,6 +194,7 @@ async function startHttpServer() {
 async function main() {
   await bootstrapDatabase();
   startMonitorScheduler();
+  startPresenceScheduler();
   await startHttpServer();
 }
 

@@ -14,6 +14,11 @@ export const EXTERNAL_API_SCOPES = [
     name: 'Read assignments',
     description: 'View asset-to-employee assignment links.',
   },
+  {
+    key: 'presence.report',
+    name: 'Report PC presence',
+    description: 'Send heartbeat POSTs from Windows agents to report machine online status.',
+  },
 ];
 
 export const EXTERNAL_API_SCOPE_KEYS = EXTERNAL_API_SCOPES.map((s) => s.key);

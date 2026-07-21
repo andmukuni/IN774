@@ -10,6 +10,7 @@ import {
   PRODUCT_JOIN_SQL,
   PRODUCT_SELECT_FIELDS,
 } from '../utils/externalApiHelpers.js';
+import { upsertHeartbeat } from '../utils/presenceHelpers.js';
 
 function parseListQuery(query) {
   const q = parseTableQuery(query, { defaultLimit: 50, maxLimit: 200 });
@@ -220,6 +221,15 @@ export function createExternalRouter() {
       res.json(buildPaginatedResponse(rows.map(mapExternalAsset), total, q));
     } catch (error) {
       res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.post('/presence/heartbeat', createExternalApiAuth('presence.report'), async (req, res) => {
+    try {
+      const data = await upsertHeartbeat(req.body || {});
+      res.json({ ok: true, data });
+    } catch (error) {
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 

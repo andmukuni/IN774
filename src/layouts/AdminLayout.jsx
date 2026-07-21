@@ -18,6 +18,7 @@ import {
   Code2,
   Mail,
   Activity,
+  Monitor,
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import AdminUserMenu from '../components/admin/AdminUserMenu';
@@ -44,6 +45,7 @@ const INVENTORY_NAVIGATION = [
 
 const SYSTEM_NAVIGATION = [
   { key: 'monitor', name: 'Servers & DB Monitor', to: '/admin/monitor', icon: Activity },
+  { key: 'presence', name: 'Devices Online', to: '/admin/presence', icon: Monitor },
   { key: 'users', name: 'Users', to: '/admin/users', icon: Users },
   { key: 'access-control', name: 'Access Control', to: '/admin/access-control', icon: Shield },
 ];

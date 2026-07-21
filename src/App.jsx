@@ -37,6 +37,7 @@ const DeveloperPage = lazy(() => import('./pages/admin/DeveloperPage'));
 const MonitorListPage = lazy(() => import('./pages/admin/MonitorListPage'));
 const MonitorFormPage = lazy(() => import('./pages/admin/MonitorFormPage'));
 const MonitorShowPage = lazy(() => import('./pages/admin/MonitorShowPage'));
+const PresenceListPage = lazy(() => import('./pages/admin/PresenceListPage'));
 
 function RouteLoader() {
   return (
@@ -152,6 +153,7 @@ export default function App() {
               <Route path="monitor/new" element={<MonitorFormPage />} />
               <Route path="monitor/:id/edit" element={<MonitorFormPage />} />
               <Route path="monitor/:id" element={<MonitorShowPage />} />
+              <Route path="presence" element={<PresenceListPage />} />
               <Route path="developer" element={<DeveloperPage />} />
               <Route path="access-control" element={<DemoAccessControlPage />} />
             </Route>

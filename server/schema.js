@@ -9,6 +9,7 @@ import { ensureSystemSettingsTable, seedSystemSettings } from './utils/systemSet
 import { ensureApiKeysTable } from './utils/apiKeyHelpers.js';
 import { ensureReminderTables } from './utils/reminderHelpers.js';
 import { ensureMonitorTables, seedMonitorTargets } from './utils/monitorHelpers.js';
+import { ensurePresenceTable } from './utils/presenceHelpers.js';
 import { GOODFELLOW_BRANCHES } from './seed/goodfellowBranches.js';
 import { COMPUTER_BRANDS } from './seed/computerBrands.js';
 import { PRODUCT_TYPES } from './seed/productTypes.js';
@@ -129,6 +130,7 @@ export async function ensureSchema() {
   await ensureApiKeysTable();
   await ensureReminderTables(pool);
   await ensureMonitorTables(pool);
+  await ensurePresenceTable();
 }
 
 async function ensureNullableUnitPrice() {

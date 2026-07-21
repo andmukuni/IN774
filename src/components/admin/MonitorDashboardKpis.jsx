@@ -11,6 +11,7 @@ import {
   performanceKpiColor,
   statusSummaryColor,
 } from '../../utils/monitorKpi';
+import MonitorKpiWaveVisual from './MonitorKpiWaveVisual';
 
 const API_BASE = getApiBase();
 
@@ -65,6 +66,7 @@ function MonitorKpiCard({
   subtitle,
   to,
   animationDelay = 0,
+  visual = null,
 }) {
   const isPercent = suffix === '%' && typeof value === 'number';
   const animated = useAnimatedPercent(isPercent ? value : null);
@@ -94,6 +96,7 @@ function MonitorKpiCard({
         {subtitle && (
           <div className="text-[11px] text-navy-400 mt-0.5 min-h-[1.75rem] line-clamp-2">{subtitle}</div>
         )}
+        {visual}
       </div>
     </div>
   );
@@ -110,12 +113,25 @@ export default function MonitorDashboardKpis() {
   const canView = hasPermission('monitor.view');
   const [targets, setTargets] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [perfHistory, setPerfHistory] = useState([]);
+  const [availHistory, setAvailHistory] = useState([]);
+  const [onlineHistory, setOnlineHistory] = useState([]);
+  const [issuesHistory, setIssuesHistory] = useState([]);
+  const [streamTick, setStreamTick] = useState(0);
   const targetsRef = useRef([]);
 
   const applyTargets = useCallback((next) => {
     setTargets(next);
     targetsRef.current = next;
     setLoaded(true);
+    const nextKpis = computeMonitorKpis(next);
+    if (nextKpis.performancePercent != null) {
+      setPerfHistory((prev) => [...prev.slice(-29), nextKpis.performancePercent]);
+    }
+    setAvailHistory((prev) => [...prev.slice(-29), nextKpis.availabilityPercent]);
+    setOnlineHistory((prev) => [...prev.slice(-29), nextKpis.up]);
+    setIssuesHistory((prev) => [...prev.slice(-29), nextKpis.down + nextKpis.unknown]);
+    setStreamTick((tick) => tick + 1);
   }, []);
 
   const loadTargets = useCallback(async () => {
@@ -226,6 +242,17 @@ export default function MonitorDashboardKpis() {
             subtitle={`${kpis.up} of ${kpis.total} servers online`}
             to="/admin/monitor"
             animationDelay={nextDelay()}
+            visual={(
+              <MonitorKpiWaveVisual
+                variant="availability"
+                percent={kpis.availabilityPercent}
+                history={availHistory}
+                streamConnected={streamConnected}
+                streamTick={streamTick}
+                color={availColor}
+                meta={`${kpis.up}/${kpis.total} up`}
+              />
+            )}
           />
           <MonitorKpiCard
             label="Performance"
@@ -236,6 +263,16 @@ export default function MonitorDashboardKpis() {
             subtitle="Latency-based score across targets"
             to="/admin/monitor"
             animationDelay={nextDelay()}
+            visual={(
+              <MonitorKpiWaveVisual
+                variant="performance"
+                percent={kpis.performancePercent}
+                history={perfHistory}
+                streamConnected={streamConnected}
+                streamTick={streamTick}
+                color={perfColor}
+              />
+            )}
           />
           <MonitorKpiCard
             label="Servers online"
@@ -245,6 +282,18 @@ export default function MonitorDashboardKpis() {
             subtitle={kpis.down > 0 ? `${kpis.down} down` : 'All monitored targets up'}
             to="/admin/monitor"
             animationDelay={nextDelay()}
+            visual={(
+              <MonitorKpiWaveVisual
+                variant="online"
+                up={kpis.up}
+                total={kpis.total}
+                history={onlineHistory}
+                streamConnected={streamConnected}
+                streamTick={streamTick}
+                color={onlineColor}
+                meta={`${kpis.up} online`}
+              />
+            )}
           />
           <MonitorKpiCard
             label="Issues"
@@ -260,6 +309,18 @@ export default function MonitorDashboardKpis() {
             }
             to="/admin/monitor"
             animationDelay={nextDelay()}
+            visual={(
+              <MonitorKpiWaveVisual
+                variant="issues"
+                issues={kpis.down + kpis.unknown}
+                total={kpis.total}
+                history={issuesHistory}
+                streamConnected={streamConnected}
+                streamTick={streamTick}
+                color={kpis.down + kpis.unknown > 0 ? 'red' : 'green'}
+                meta={kpis.down + kpis.unknown === 0 ? 'all clear' : `${kpis.down + kpis.unknown} active`}
+              />
+            )}
           />
         </div>
       )}
