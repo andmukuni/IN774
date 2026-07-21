@@ -6,6 +6,7 @@ import {
   getUptimeReport,
   listIncidents,
   listMonitorTargets,
+  listMonitorTargetsWithTelemetry,
   listRecentChecks,
   updateMonitorTarget,
 } from '../utils/monitorHelpers.js';
@@ -16,7 +17,7 @@ export function createMonitorRouter() {
 
   router.get('/', async (_req, res) => {
     try {
-      const data = await listMonitorTargets();
+      const data = await listMonitorTargetsWithTelemetry();
       res.json({ ok: true, data });
     } catch (error) {
       res.status(error?.status || 500).json({ ok: false, message: error.message });

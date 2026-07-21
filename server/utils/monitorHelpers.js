@@ -264,6 +264,122 @@ export async function listMonitorTargets() {
   return rows.map((row) => mapTargetRow(row));
 }
 
+function computeSpeedRating({ status, latencyMs, avgLatencyMs }) {
+  if (status === 'down') {
+    return { label: 'Offline', tone: 'down' };
+  }
+  const ms = avgLatencyMs ?? latencyMs;
+  if (ms == null) {
+    return { label: 'Pending', tone: 'unknown' };
+  }
+  if (ms < 200) return { label: 'Fast', tone: 'fast' };
+  if (ms < 600) return { label: 'Good', tone: 'good' };
+  if (ms < 1500) return { label: 'Moderate', tone: 'moderate' };
+  return { label: 'Slow', tone: 'slow' };
+}
+
+function computeTrafficRating({ checksLastHour, intervalSeconds, enabled }) {
+  if (!enabled) {
+    return { label: 'Paused', tone: 'muted', checksLastHour: 0, expectedPerHour: 0 };
+  }
+  const expectedPerHour = Math.max(1, Math.round(3600 / Math.max(intervalSeconds || 300, 60)));
+  const ratio = checksLastHour / expectedPerHour;
+  let label = 'Normal';
+  let tone = 'normal';
+  if (ratio >= 0.85) {
+    label = 'Active';
+    tone = 'high';
+  } else if (ratio < 0.35) {
+    label = 'Low';
+    tone = 'low';
+  }
+  return { label, tone, checksLastHour, expectedPerHour };
+}
+
+export async function listMonitorTargetsWithTelemetry() {
+  const targets = await listMonitorTargets();
+  if (!targets.length) return [];
+
+  const ids = targets.map((t) => t.id);
+  const [sampleRows] = await pool.query(
+    `SELECT target_id, latency_ms, checked_at, ok
+     FROM monitor_check_results
+     WHERE target_id IN (?)
+       AND checked_at >= DATE_SUB(NOW(), INTERVAL 6 HOUR)
+     ORDER BY target_id ASC, checked_at DESC`,
+    [ids],
+  );
+
+  const [hourlyRows] = await pool.query(
+    `SELECT target_id, COUNT(*) AS checks_last_hour
+     FROM monitor_check_results
+     WHERE target_id IN (?)
+       AND checked_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+     GROUP BY target_id`,
+    [ids],
+  );
+
+  const samplesByTarget = new Map();
+  for (const row of sampleRows) {
+    const list = samplesByTarget.get(row.target_id) || [];
+    if (list.length < 16) {
+      list.push({
+        latencyMs: row.latency_ms == null ? null : Number(row.latency_ms),
+        checkedAt: row.checked_at,
+        ok: Boolean(row.ok),
+      });
+    }
+    samplesByTarget.set(row.target_id, list);
+  }
+
+  const hourlyByTarget = new Map(
+    hourlyRows.map((row) => [row.target_id, Number(row.checks_last_hour) || 0]),
+  );
+
+  return targets.map((target) => {
+    const rawSamples = samplesByTarget.get(target.id) || [];
+    const recentSamples = [...rawSamples].reverse();
+    const recentLatencies = recentSamples
+      .filter((s) => s.ok && s.latencyMs != null)
+      .map((s) => s.latencyMs);
+    const okLatencies = recentLatencies;
+    const avgLatencyMs = okLatencies.length
+      ? Math.round(okLatencies.reduce((sum, v) => sum + v, 0) / okLatencies.length)
+      : null;
+    const prevLatencyMs = okLatencies.length > 1
+      ? okLatencies[okLatencies.length - 2]
+      : null;
+    const currentLatencyMs = target.lastLatencyMs ?? (okLatencies.length ? okLatencies[okLatencies.length - 1] : null);
+    let latencyTrend = 'flat';
+    if (currentLatencyMs != null && prevLatencyMs != null) {
+      if (currentLatencyMs > prevLatencyMs + 5) latencyTrend = 'up';
+      else if (currentLatencyMs < prevLatencyMs - 5) latencyTrend = 'down';
+    }
+
+    const checksLastHour = hourlyByTarget.get(target.id) || 0;
+    const speed = computeSpeedRating({
+      status: target.status,
+      latencyMs: currentLatencyMs,
+      avgLatencyMs,
+    });
+    const traffic = computeTrafficRating({
+      checksLastHour,
+      intervalSeconds: target.intervalSeconds,
+      enabled: target.enabled,
+    });
+
+    return {
+      ...target,
+      avgLatencyMs,
+      latencyTrend,
+      recentLatencies: okLatencies.slice(-16),
+      checksLastHour,
+      speed,
+      traffic,
+    };
+  });
+}
+
 export async function getMonitorTarget(id, { includeSecrets = false } = {}) {
   const [[row]] = await pool.query('SELECT * FROM monitor_targets WHERE id = ? LIMIT 1', [id]);
   if (!row) {

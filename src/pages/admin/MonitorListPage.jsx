@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, PlusCircle, RefreshCw } from 'lucide-react';
+import { Activity, Eye, PlusCircle, RefreshCw } from 'lucide-react';
 import { PageHeader, Card, Spinner, LoadingButton } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +8,7 @@ import { getApiBase } from '../../utils/apiBase';
 import { getAdminAuthHeaders } from '../../utils/authHeaders';
 
 const API_BASE = getApiBase();
+const LIVE_POLL_MS = 5_000;
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -47,6 +48,102 @@ function endpointLabel(target) {
   return `${target.hostOrUrl}${port}`;
 }
 
+const SPEED_TONE_CLASS = {
+  fast: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  good: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+  moderate: 'bg-amber-100 text-amber-800 border-amber-200',
+  slow: 'bg-orange-100 text-orange-800 border-orange-200',
+  down: 'bg-red-100 text-red-800 border-red-200',
+  unknown: 'bg-navy-100 text-navy-600 border-navy-200',
+};
+
+const TRAFFIC_TONE_CLASS = {
+  high: 'text-emerald-700',
+  normal: 'text-cyan-700',
+  low: 'text-amber-700',
+  muted: 'text-navy-400',
+};
+
+function LatencySparkline({ samples = [], width = 80, height = 28 }) {
+  const points = (samples || []).filter((v) => Number.isFinite(v));
+  if (points.length < 2) {
+    return <span className="inline-block h-7 w-20 rounded bg-navy-50" aria-hidden />;
+  }
+
+  const max = Math.max(...points, 1);
+  const min = Math.min(...points);
+  const range = Math.max(max - min, 1);
+  const coords = points.map((value, index) => {
+    const x = (index / (points.length - 1)) * width;
+    const y = height - ((value - min) / range) * (height - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="shrink-0 text-cyan-600" aria-hidden>
+      <polyline
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        points={coords}
+      />
+    </svg>
+  );
+}
+
+function LiveMsCell({ latencyMs, avgLatencyMs, recentLatencies = [], trend = 'flat', flash = false }) {
+  const displayMs = latencyMs ?? avgLatencyMs;
+  const trendSymbol = trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→';
+  const trendClass = trend === 'up'
+    ? 'text-amber-600'
+    : trend === 'down'
+      ? 'text-emerald-600'
+      : 'text-navy-400';
+
+  return (
+    <div className={`flex items-center gap-2 min-w-[130px] transition-colors duration-500 ${flash ? 'rounded-lg bg-cyan-50/80 px-1 -mx-1' : ''}`}>
+      <LatencySparkline samples={recentLatencies} />
+      <div className="leading-tight">
+        <div className="flex items-baseline gap-1">
+          <span className="font-mono text-sm font-semibold tabular-nums text-navy-900">
+            {displayMs != null ? displayMs : '—'}
+          </span>
+          {displayMs != null && <span className="text-[10px] text-navy-400">ms</span>}
+          <span className={`text-[10px] font-bold ${trendClass}`} title="Latest trend">{trendSymbol}</span>
+        </div>
+        {avgLatencyMs != null && displayMs != null && avgLatencyMs !== displayMs && (
+          <p className="text-[10px] tabular-nums text-navy-400">avg {avgLatencyMs} ms</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SpeedTrafficCell({ speed, traffic }) {
+  const speedTone = SPEED_TONE_CLASS[speed?.tone] || SPEED_TONE_CLASS.unknown;
+  const trafficTone = TRAFFIC_TONE_CLASS[traffic?.tone] || TRAFFIC_TONE_CLASS.normal;
+
+  return (
+    <div className="min-w-[108px] space-y-1">
+      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${speedTone}`}>
+        {speed?.label || '—'}
+      </span>
+      <p className={`text-xs font-medium tabular-nums ${trafficTone}`}>
+        {traffic?.label || '—'}
+        {traffic?.checksLastHour != null && (
+          <span className="text-navy-400 font-normal">
+            {' · '}
+            {traffic.checksLastHour}
+            /hr
+          </span>
+        )}
+      </p>
+    </div>
+  );
+}
+
 export default function MonitorListPage() {
   const toast = useToast();
   const { hasPermission } = useAuth();
@@ -57,6 +154,7 @@ export default function MonitorListPage() {
   const [targets, setTargets] = useState([]);
   const [checkingId, setCheckingId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [flashIds, setFlashIds] = useState(new Set());
 
   const loadTargets = useCallback(async (silent = false) => {
     if (!canView) {
@@ -72,7 +170,21 @@ export default function MonitorListPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.ok) throw new Error(json?.message || 'Failed to load monitor targets');
-      setTargets(Array.isArray(json.data) ? json.data : []);
+      const next = Array.isArray(json.data) ? json.data : [];
+      setTargets((prev) => {
+        const changed = new Set();
+        for (const row of next) {
+          const old = prev.find((p) => p.id === row.id);
+          if (old && old.lastLatencyMs !== row.lastLatencyMs) {
+            changed.add(row.id);
+          }
+        }
+        if (changed.size) {
+          setFlashIds(changed);
+          window.setTimeout(() => setFlashIds(new Set()), 700);
+        }
+        return next;
+      });
     } catch (err) {
       toast.error(err?.message || 'Unable to load monitor targets.');
     } finally {
@@ -83,7 +195,7 @@ export default function MonitorListPage() {
 
   useEffect(() => {
     loadTargets();
-    const interval = setInterval(() => loadTargets(true), 30_000);
+    const interval = setInterval(() => loadTargets(true), LIVE_POLL_MS);
     return () => clearInterval(interval);
   }, [loadTargets]);
 
@@ -198,7 +310,8 @@ export default function MonitorListPage() {
                     <th className="px-4 py-3 font-semibold">Endpoint</th>
                     <th className="px-4 py-3 font-semibold">Status</th>
                     <th className="px-4 py-3 font-semibold">Last check</th>
-                    <th className="px-4 py-3 font-semibold">Latency</th>
+                    <th className="px-4 py-3 font-semibold">Live (ms)</th>
+                    <th className="px-4 py-3 font-semibold">Speed / traffic</th>
                     <th className="px-4 py-3 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -216,27 +329,44 @@ export default function MonitorListPage() {
                       <td className="px-4 py-3"><TypeBadge type={target.type} /></td>
                       <td className="px-4 py-3 font-mono text-xs text-navy-700 max-w-xs truncate">{endpointLabel(target)}</td>
                       <td className="px-4 py-3"><StatusBadge status={target.status} /></td>
-                      <td className="px-4 py-3 text-navy-600">{formatDateTime(target.lastCheckedAt)}</td>
-                      <td className="px-4 py-3 text-navy-600">
-                        {target.lastLatencyMs != null ? `${target.lastLatencyMs} ms` : '—'}
+                      <td className="px-4 py-3 text-navy-600 whitespace-nowrap">{formatDateTime(target.lastCheckedAt)}</td>
+                      <td className="px-4 py-3">
+                        <LiveMsCell
+                          latencyMs={target.lastLatencyMs}
+                          avgLatencyMs={target.avgLatencyMs}
+                          recentLatencies={target.recentLatencies}
+                          trend={target.latencyTrend}
+                          flash={flashIds.has(target.id)}
+                        />
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex justify-end gap-2">
+                        <SpeedTrafficCell speed={target.speed} traffic={target.traffic} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-1.5">
                           {canManage && (
-                            <LoadingButton
+                            <button
                               type="button"
-                              loading={checkingId === target.id}
+                              disabled={checkingId === target.id}
                               onClick={() => handleCheckNow(target.id)}
-                              className="px-3 py-1.5 rounded-lg border border-navy-200 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                              title="Check now"
+                              aria-label="Check now"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-navy-200 text-navy-700 hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                              Check now
-                            </LoadingButton>
+                              {checkingId === target.id ? (
+                                <Spinner size={16} />
+                              ) : (
+                                <RefreshCw size={16} />
+                              )}
+                            </button>
                           )}
                           <Link
                             to={`/admin/monitor/${target.id}`}
-                            className="inline-flex items-center px-3 py-1.5 rounded-lg border border-navy-200 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                            title="View"
+                            aria-label="View"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-navy-200 text-navy-700 hover:bg-navy-50"
                           >
-                            View
+                            <Eye size={16} />
                           </Link>
                         </div>
                       </td>
