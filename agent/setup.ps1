@@ -13,7 +13,7 @@ $ProgramDir = 'C:\Program Files\GFLPresence'
 $ConfigDir = 'C:\ProgramData\GFLPresence'
 $AgentExeName = 'GFLPresence.exe'
 $AgentVersion = '1.0.0'
-$InstallerVersion = '1.1.1'
+$InstallerVersion = '1.1.2'
 
 function Write-Step([string]$Message) {
   Write-Host ""
@@ -111,31 +111,100 @@ function Invoke-GflApi {
   }
 }
 
+function Test-ValidSerial([string]$Value) {
+  if (-not $Value) { return $false }
+  $serial = $Value.Trim()
+  if (-not $serial) { return $false }
+
+  $invalid = @(
+    'to be filled by o.e.m.',
+    'to be filled by oem',
+    'default string',
+    'system serial number',
+    'system product name',
+    'chassis serial number',
+    'base board serial number',
+    'none',
+    'n/a',
+    'na',
+    'null',
+    'unknown',
+    'not specified',
+    'not available',
+    'o.e.m',
+    'oem',
+    '0',
+    '0000000',
+    '00000000',
+    '000000000000',
+    '123456789',
+    'abcdefgh',
+    'string'
+  )
+  if ($invalid -contains $serial.ToLowerInvariant()) { return $false }
+  if ($serial -match '^[0\-\s]+$') { return $false }
+  if ($serial.Length -lt 3) { return $false }
+  return $true
+}
+
 function Get-BiosSerial {
-  try {
-    $serial = (Get-CimInstance -ClassName Win32_BIOS -ErrorAction Stop).SerialNumber
-    $serial = [string]$serial
-    if ($serial) {
-      $serial = $serial.Trim()
-      if ($serial -and $serial -notin @('To be filled by O.E.M.', 'Default string', 'None', 'N/A')) {
-        return $serial
+  # Many PCs leave Win32_BIOS.SerialNumber blank; try several hardware sources.
+  $candidates = @()
+
+  $queries = @(
+    @{ Source = 'BIOS'; Script = { (Get-CimInstance -ClassName Win32_BIOS -ErrorAction Stop).SerialNumber } },
+    @{ Source = 'System Product'; Script = { (Get-CimInstance -ClassName Win32_ComputerSystemProduct -ErrorAction Stop).IdentifyingNumber } },
+    @{ Source = 'Baseboard'; Script = { (Get-CimInstance -ClassName Win32_BaseBoard -ErrorAction Stop).SerialNumber } },
+    @{ Source = 'Enclosure'; Script = { (Get-CimInstance -ClassName Win32_SystemEnclosure -ErrorAction Stop).SerialNumber } }
+  )
+
+  foreach ($q in $queries) {
+    try {
+      $raw = & $q.Script
+      if ($raw -is [Array]) { $raw = $raw | Where-Object { $_ } | Select-Object -First 1 }
+      $serial = [string]$raw
+      if (Test-ValidSerial $serial) {
+        $script:DetectedSerialSource = $q.Source
+        return $serial.Trim()
+      }
+      if ($serial -and $serial.Trim()) {
+        $candidates += ("{0}: {1}" -f $q.Source, $serial.Trim())
       }
     }
+    catch { }
   }
-  catch { }
 
-  try {
-    $out = & wmic bios get serialnumber 2>$null
-    foreach ($line in $out) {
-      $line = ([string]$line).Trim()
-      if (-not $line -or $line -eq 'SerialNumber') { continue }
-      if ($line -notin @('To be filled by O.E.M.', 'Default string', 'None', 'N/A')) {
-        return $line
+  # Legacy WMIC fallbacks (removed on some newer Windows builds)
+  $wmicQueries = @(
+    @{ Source = 'BIOS (wmic)'; Args = @('bios', 'get', 'serialnumber') },
+    @{ Source = 'System Product (wmic)'; Args = @('csproduct', 'get', 'identifyingnumber') },
+    @{ Source = 'Baseboard (wmic)'; Args = @('baseboard', 'get', 'serialnumber') }
+  )
+  foreach ($q in $wmicQueries) {
+    try {
+      $out = & wmic @($q.Args) 2>$null
+      foreach ($line in $out) {
+        $line = ([string]$line).Trim()
+        if (-not $line) { continue }
+        if ($line -match '^(SerialNumber|IdentifyingNumber)$') { continue }
+        if (Test-ValidSerial $line) {
+          $script:DetectedSerialSource = $q.Source
+          return $line
+        }
+        $candidates += ("{0}: {1}" -f $q.Source, $line)
       }
     }
+    catch { }
   }
-  catch { }
 
+  if ($candidates.Count -gt 0) {
+    Write-Host "  Hardware returned placeholder/empty serials:"
+    foreach ($c in $candidates) {
+      Write-Host "    - $c"
+    }
+  }
+
+  $script:DetectedSerialSource = ''
   return ''
 }
 
@@ -335,16 +404,24 @@ while (-not $employee) {
   Write-Ok ("Will register: {0} <{1}>" -f $employee.fullName, $employee.email)
 }
 
-# 4) BIOS serial
+# 4) BIOS / hardware serial
 Write-Step "Detecting device serial number"
+$script:DetectedSerialSource = ''
 $serial = Get-BiosSerial
 if (-not $serial) {
-  Write-Warn "Could not read BIOS serial automatically."
+  Write-Warn "Could not read a valid hardware serial automatically."
+  Write-Host "  Tip: check the sticker on the PC chassis, or run:"
+  Write-Host "    Get-CimInstance Win32_ComputerSystemProduct | Select IdentifyingNumber"
   $serial = Read-Host "Enter device serial number (S/N) manually"
   $serial = $serial.Trim()
 }
 else {
-  Write-Host "  Detected serial: $serial"
+  if ($script:DetectedSerialSource) {
+    Write-Host ("  Detected serial ({0}): {1}" -f $script:DetectedSerialSource, $serial)
+  }
+  else {
+    Write-Host "  Detected serial: $serial"
+  }
   $confirm = Read-Host "Use this serial? (Y/n)"
   if ($confirm -and $confirm.Trim().ToLower() -eq 'n') {
     $serial = Read-Host "Enter device serial number (S/N)"
