@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Monitor, RefreshCw, Search } from 'lucide-react';
 import { PageHeader, Card, Spinner, LoadingButton } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
@@ -91,7 +91,14 @@ function LivePill({ connected }) {
   );
 }
 
+function deviceRowHref(device) {
+  if (device?.productId) return `/admin/items/${device.productId}`;
+  if (device?.employeeId) return `/admin/employees/${device.employeeId}`;
+  return null;
+}
+
 export default function PresenceListPage() {
+  const navigate = useNavigate();
   const toast = useToast();
   const { hasPermission } = useAuth();
   const canView = hasPermission('presence.view');
@@ -336,8 +343,26 @@ export default function PresenceListPage() {
                   const durationLabel = device.onlineStatus === 'online'
                     ? `Online ${formatDuration(since)}`
                     : `Offline ${formatDuration(since)}`;
+                  const href = deviceRowHref(device);
                   return (
-                    <tr key={device.id} className="text-sm text-navy-800 hover:bg-navy-50/60">
+                    <tr
+                      key={device.id}
+                      className={`text-sm text-navy-800 transition-colors ${
+                        href
+                          ? 'cursor-pointer hover:bg-cyan-50/70'
+                          : 'hover:bg-navy-50/60'
+                      }`}
+                      onClick={href ? () => navigate(href) : undefined}
+                      onKeyDown={href ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          navigate(href);
+                        }
+                      } : undefined}
+                      role={href ? 'link' : undefined}
+                      tabIndex={href ? 0 : undefined}
+                      title={href ? 'Open linked record' : undefined}
+                    >
                       <td className="px-4 py-3">
                         <StatusBadge status={device.onlineStatus} />
                       </td>
@@ -365,13 +390,6 @@ export default function PresenceListPage() {
                       <td className="px-4 py-3 font-mono text-xs">{device.localIp || '—'}</td>
                       <td className="px-4 py-3" title={formatDateTime(device.lastHeartbeatAt)}>
                         {formatRelativeTime(device.lastHeartbeatAt)}
-                        {device.productId && (
-                          <div className="mt-0.5 text-xs text-navy-400">
-                            <Link to={`/admin/items/${device.productId}`} className="hover:text-cyan-700">
-                              View asset
-                            </Link>
-                          </div>
-                        )}
                       </td>
                     </tr>
                   );
