@@ -1,5 +1,11 @@
 import crypto from 'crypto';
 import pool from '../db.js';
+import {
+  hasPresenceStreamClients,
+  publishPresenceEvent,
+  schedulePresenceBroadcast,
+  setPresenceBroadcastHandler,
+} from './presenceEvents.js';
 
 export const PRESENCE_OFFLINE_THRESHOLD_MINUTES = Number(process.env.PRESENCE_OFFLINE_THRESHOLD_MINUTES || 15);
 
@@ -15,6 +21,7 @@ const PRESENCE_SELECT = `
   dp.agent_version,
   dp.last_heartbeat_at,
   dp.online_status,
+  dp.status_changed_at,
   dp.employee_id,
   dp.branch_id,
   dp.created_at,
@@ -42,6 +49,19 @@ function generateId(prefix = 'dpr') {
 function mapPresenceRow(row) {
   if (!row) return null;
   const employeeName = [row.employee_first_name, row.employee_last_name].filter(Boolean).join(' ').trim();
+  const statusChangedAt = row.status_changed_at
+    ? new Date(row.status_changed_at).toISOString()
+    : null;
+  const lastHeartbeatAt = row.last_heartbeat_at
+    ? new Date(row.last_heartbeat_at).toISOString()
+    : null;
+  const onlineStatus = row.online_status || 'offline';
+
+  // Prefer explicit transition time; fall back for legacy rows.
+  const durationSince = statusChangedAt
+    || (onlineStatus === 'online' ? lastHeartbeatAt : null)
+    || (row.updated_at ? new Date(row.updated_at).toISOString() : null);
+
   return {
     id: row.id,
     machineId: row.machine_id,
@@ -52,8 +72,10 @@ function mapPresenceRow(row) {
     loggedInUser: row.logged_in_user || '',
     localIp: row.local_ip || '',
     agentVersion: row.agent_version || '',
-    lastHeartbeatAt: row.last_heartbeat_at ? new Date(row.last_heartbeat_at).toISOString() : null,
-    onlineStatus: row.online_status || 'offline',
+    lastHeartbeatAt,
+    onlineStatus,
+    statusChangedAt,
+    durationSince,
     employeeId: row.employee_id || null,
     branchId: row.branch_id || null,
     employeeName: employeeName || null,
@@ -81,6 +103,7 @@ export async function ensurePresenceTable() {
       agent_version VARCHAR(40) NOT NULL DEFAULT '',
       last_heartbeat_at DATETIME NULL,
       online_status VARCHAR(20) NOT NULL DEFAULT 'offline',
+      status_changed_at DATETIME NULL,
       employee_id VARCHAR(90) NULL,
       branch_id VARCHAR(90) NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -90,6 +113,22 @@ export async function ensurePresenceTable() {
       INDEX idx_device_presence_serial (serial_number),
       INDEX idx_device_presence_hostname (hostname)
     )
+  `);
+
+  try {
+    const [cols] = await pool.query(`SHOW COLUMNS FROM device_presence LIKE 'status_changed_at'`);
+    if (!cols.length) {
+      await pool.query('ALTER TABLE device_presence ADD COLUMN status_changed_at DATETIME NULL AFTER online_status');
+    }
+  } catch {
+    // ignore if column already exists / race
+  }
+
+  // Backfill missing transition timestamps once.
+  await pool.query(`
+    UPDATE device_presence
+    SET status_changed_at = COALESCE(last_heartbeat_at, updated_at, created_at, NOW())
+    WHERE status_changed_at IS NULL
   `);
 }
 
@@ -129,11 +168,12 @@ export async function upsertHeartbeat(payload = {}) {
   const branchId = product?.branch_id || null;
 
   const [[existing]] = await pool.query(
-    'SELECT id FROM device_presence WHERE machine_id = ? LIMIT 1',
+    'SELECT id, online_status FROM device_presence WHERE machine_id = ? LIMIT 1',
     [machineId],
   );
 
   if (existing?.id) {
+    const comingOnline = existing.online_status !== 'online';
     await pool.query(
       `UPDATE device_presence
        SET product_id = ?,
@@ -145,21 +185,31 @@ export async function upsertHeartbeat(payload = {}) {
            agent_version = ?,
            last_heartbeat_at = NOW(),
            online_status = 'online',
+           status_changed_at = CASE
+             WHEN online_status != 'online' OR status_changed_at IS NULL THEN NOW()
+             ELSE status_changed_at
+           END,
            employee_id = ?,
            branch_id = ?
        WHERE machine_id = ?`,
       [productId, hostname, serialNumber, osVersion, loggedInUser, localIp, agentVersion, employeeId, branchId, machineId],
     );
+    if (comingOnline) {
+      schedulePresenceBroadcast({ immediate: true });
+    } else {
+      schedulePresenceBroadcast({ delayMs: 1500 });
+    }
   } else {
     const id = generateId();
     await pool.query(
       `INSERT INTO device_presence (
          id, machine_id, product_id, hostname, serial_number, os_version,
          logged_in_user, local_ip, agent_version, last_heartbeat_at, online_status,
-         employee_id, branch_id
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'online', ?, ?)`,
+         status_changed_at, employee_id, branch_id
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'online', NOW(), ?, ?)`,
       [id, machineId, productId, hostname, serialNumber, osVersion, loggedInUser, localIp, agentVersion, employeeId, branchId],
     );
+    schedulePresenceBroadcast({ immediate: true });
   }
 
   const [[row]] = await pool.query(
@@ -173,7 +223,8 @@ export async function markStaleDevicesOffline() {
   const thresholdMinutes = Math.max(1, PRESENCE_OFFLINE_THRESHOLD_MINUTES);
   const [result] = await pool.query(
     `UPDATE device_presence
-     SET online_status = 'offline'
+     SET online_status = 'offline',
+         status_changed_at = NOW()
      WHERE online_status = 'online'
        AND (
          last_heartbeat_at IS NULL
@@ -181,7 +232,11 @@ export async function markStaleDevicesOffline() {
        )`,
     [thresholdMinutes],
   );
-  return Number(result?.affectedRows || 0);
+  const marked = Number(result?.affectedRows || 0);
+  if (marked > 0) {
+    schedulePresenceBroadcast({ immediate: true });
+  }
+  return marked;
 }
 
 export async function listPresenceDevices({ status = '', search = '', limit = 50, offset = 0 } = {}) {
@@ -262,3 +317,25 @@ export async function getPresenceSummary() {
     offline: Number(row?.offline_count || 0),
   };
 }
+
+export async function broadcastPresenceSnapshot() {
+  if (!hasPresenceStreamClients()) return null;
+  const [result, summary] = await Promise.all([
+    listPresenceDevices({ limit: 200, offset: 0 }),
+    getPresenceSummary(),
+  ]);
+  const payload = {
+    devices: result.data,
+    summary,
+    meta: {
+      total: result.total,
+      limit: result.limit,
+      offset: result.offset,
+    },
+    at: new Date().toISOString(),
+  };
+  publishPresenceEvent('snapshot', payload);
+  return payload;
+}
+
+setPresenceBroadcastHandler(broadcastPresenceSnapshot);

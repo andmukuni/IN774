@@ -4,6 +4,7 @@ import { Monitor, RefreshCw, Search } from 'lucide-react';
 import { PageHeader, Card, Spinner, LoadingButton } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { usePresenceStream } from '../../hooks/usePresenceStream';
 import { getApiBase } from '../../utils/apiBase';
 import { getAdminAuthHeaders } from '../../utils/authHeaders';
 
@@ -21,6 +22,20 @@ function formatRelativeTime(value) {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+function formatDuration(value) {
+  if (!value) return '—';
+  const ms = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return '—';
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
 }
 
 function formatDateTime(value) {
@@ -61,6 +76,21 @@ function SummaryCard({ label, value, tone = 'default' }) {
   );
 }
 
+function LivePill({ connected }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+        connected
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          : 'border-amber-200 bg-amber-50 text-amber-800'
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+      {connected ? 'SSE live' : 'SSE reconnecting'}
+    </span>
+  );
+}
+
 export default function PresenceListPage() {
   const toast = useToast();
   const { hasPermission } = useAuth();
@@ -69,11 +99,28 @@ export default function PresenceListPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [devices, setDevices] = useState([]);
+  const [allDevices, setAllDevices] = useState([]);
   const [summary, setSummary] = useState({ total: 0, online: 0, offline: 0 });
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [liveTick, setLiveTick] = useState(0);
+
+  const applySnapshot = useCallback((nextDevices, payload) => {
+    const list = Array.isArray(nextDevices) ? nextDevices : [];
+    setAllDevices(list);
+    if (payload?.summary) {
+      setSummary(payload.summary);
+    } else {
+      setSummary({
+        total: list.length,
+        online: list.filter((d) => d.onlineStatus === 'online').length,
+        offline: list.filter((d) => d.onlineStatus === 'offline').length,
+      });
+    }
+    setLoading(false);
+    setRefreshing(false);
+  }, []);
 
   const loadDevices = useCallback(async (silent = false) => {
     if (!canView) {
@@ -84,13 +131,8 @@ export default function PresenceListPage() {
     else setRefreshing(true);
 
     try {
-      const params = new URLSearchParams();
-      if (statusFilter) params.set('status', statusFilter);
-      if (search) params.set('search', search);
-      params.set('limit', '200');
-
       const [listRes, summaryRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/presence?${params.toString()}`, {
+        fetch(`${API_BASE}/admin/presence?limit=200`, {
           headers: getAdminAuthHeaders(),
           cache: 'no-store',
         }),
@@ -107,41 +149,69 @@ export default function PresenceListPage() {
         throw new Error(listJson?.message || 'Failed to load devices');
       }
 
-      setDevices(Array.isArray(listJson.data) ? listJson.data : []);
-      if (summaryRes.ok && summaryJson?.ok) {
-        setSummary(summaryJson.data || { total: 0, online: 0, offline: 0 });
-      }
+      applySnapshot(listJson.data, {
+        summary: summaryRes.ok && summaryJson?.ok
+          ? summaryJson.data
+          : undefined,
+      });
     } catch (err) {
       toast.error(err?.message || 'Unable to load PC presence data.');
-    } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [canView, statusFilter, search, toast]);
+  }, [canView, toast, applySnapshot]);
+
+  const { connected } = usePresenceStream({
+    enabled: canView,
+    onSnapshot: applySnapshot,
+  });
 
   useEffect(() => {
+    // Initial REST load in case SSE is slow/unavailable.
     loadDevices();
   }, [loadDevices]);
-
-  useEffect(() => {
-    if (!canView) return undefined;
-    const interval = setInterval(() => loadDevices(true), 30_000);
-    return () => clearInterval(interval);
-  }, [canView, loadDevices]);
 
   useEffect(() => {
     const interval = setInterval(() => setLiveTick((t) => t + 1), 1000);
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const term = search.trim().toLowerCase();
+    let next = allDevices;
+    if (statusFilter === 'online' || statusFilter === 'offline') {
+      next = next.filter((d) => d.onlineStatus === statusFilter);
+    }
+    if (term) {
+      next = next.filter((d) => {
+        const hay = [
+          d.hostname,
+          d.serialNumber,
+          d.loggedInUser,
+          d.localIp,
+          d.employeeName,
+          d.employeeCode,
+          d.branchName,
+          d.productName,
+          d.productSku,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(term);
+      });
+    }
+    setDevices(next);
+  }, [allDevices, statusFilter, search]);
+
   const filteredSummary = useMemo(() => {
-    if (!statusFilter) return summary;
+    if (!statusFilter && !search.trim()) return summary;
     return {
       total: devices.length,
       online: devices.filter((d) => d.onlineStatus === 'online').length,
       offline: devices.filter((d) => d.onlineStatus === 'offline').length,
     };
-  }, [devices, statusFilter, summary]);
+  }, [devices, statusFilter, search, summary]);
 
   const handleSearchSubmit = (event) => {
     event.preventDefault();
@@ -163,18 +233,21 @@ export default function PresenceListPage() {
     <div className="space-y-6">
       <PageHeader
         title="Devices Online"
-        subtitle="Track which Windows PCs are connected and in use across the organization."
+        subtitle="Live PC presence — online/offline updates without refreshing."
         actions={(
-          <LoadingButton
-            type="button"
-            variant="secondary"
-            loading={refreshing}
-            onClick={() => loadDevices(true)}
-            className="inline-flex items-center gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </LoadingButton>
+          <div className="flex items-center gap-2">
+            <LivePill connected={connected} />
+            <LoadingButton
+              type="button"
+              variant="secondary"
+              loading={refreshing}
+              onClick={() => loadDevices(true)}
+              className="inline-flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </LoadingButton>
+          </div>
         )}
       />
 
@@ -247,6 +320,7 @@ export default function PresenceListPage() {
               <thead>
                 <tr className="text-left text-xs font-semibold uppercase tracking-wide text-navy-500">
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Duration</th>
                   <th className="px-4 py-3">Hostname</th>
                   <th className="px-4 py-3">Serial</th>
                   <th className="px-4 py-3">Logged-in user</th>
@@ -257,40 +331,51 @@ export default function PresenceListPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-navy-50">
-                {devices.map((device) => (
-                  <tr key={device.id} className="text-sm text-navy-800 hover:bg-navy-50/60">
-                    <td className="px-4 py-3">
-                      <StatusBadge status={device.onlineStatus} />
-                    </td>
-                    <td className="px-4 py-3 font-medium">{device.hostname || '—'}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{device.serialNumber || '—'}</td>
-                    <td className="px-4 py-3">{device.loggedInUser || '—'}</td>
-                    <td className="px-4 py-3">
-                      {device.employeeName ? (
-                        <div>
-                          <div>{device.employeeName}</div>
-                          {device.employeeCode && (
-                            <div className="text-xs text-navy-500">{device.employeeCode}</div>
-                          )}
-                        </div>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-4 py-3">{device.branchName || '—'}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{device.localIp || '—'}</td>
-                    <td className="px-4 py-3" title={formatDateTime(device.lastHeartbeatAt)}>
-                      {formatRelativeTime(device.lastHeartbeatAt)}
-                      {liveTick >= 0 && device.productId && (
-                        <div className="mt-0.5 text-xs text-navy-400">
-                          <Link to={`/admin/items/${device.productId}`} className="hover:text-cyan-700">
-                            View asset
-                          </Link>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {devices.map((device) => {
+                  const since = device.statusChangedAt || device.durationSince;
+                  const durationLabel = device.onlineStatus === 'online'
+                    ? `Online ${formatDuration(since)}`
+                    : `Offline ${formatDuration(since)}`;
+                  return (
+                    <tr key={device.id} className="text-sm text-navy-800 hover:bg-navy-50/60">
+                      <td className="px-4 py-3">
+                        <StatusBadge status={device.onlineStatus} />
+                      </td>
+                      <td className="px-4 py-3 tabular-nums" title={formatDateTime(since)}>
+                        <span className={device.onlineStatus === 'online' ? 'text-emerald-700' : 'text-red-700'}>
+                          {durationLabel}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-medium">{device.hostname || '—'}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{device.serialNumber || '—'}</td>
+                      <td className="px-4 py-3">{device.loggedInUser || '—'}</td>
+                      <td className="px-4 py-3">
+                        {device.employeeName ? (
+                          <div>
+                            <div>{device.employeeName}</div>
+                            {device.employeeCode && (
+                              <div className="text-xs text-navy-500">{device.employeeCode}</div>
+                            )}
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="px-4 py-3">{device.branchName || '—'}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{device.localIp || '—'}</td>
+                      <td className="px-4 py-3" title={formatDateTime(device.lastHeartbeatAt)}>
+                        {formatRelativeTime(device.lastHeartbeatAt)}
+                        {device.productId && (
+                          <div className="mt-0.5 text-xs text-navy-400">
+                            <Link to={`/admin/items/${device.productId}`} className="hover:text-cyan-700">
+                              View asset
+                            </Link>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

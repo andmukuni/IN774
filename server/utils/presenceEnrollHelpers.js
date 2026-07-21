@@ -10,6 +10,7 @@ import {
   resolveEmployeeCode,
 } from './intakeHelpers.js';
 import { upsertHeartbeat } from './presenceHelpers.js';
+import { schedulePresenceBroadcast } from './presenceEvents.js';
 import {
   PRODUCT_EVENT_TYPES,
   logProductEvent,
@@ -322,6 +323,7 @@ export async function enrollPresenceDevice(payload = {}) {
      WHERE machine_id = ?`,
     [employee.id, branch.id, machineId],
   );
+  schedulePresenceBroadcast({ immediate: true });
 
   const [[presenceRow]] = await pool.query(
     `SELECT
