@@ -565,64 +565,119 @@ export async function pruneOldCheckResults() {
 }
 
 export async function seedMonitorTargets() {
-  const appUrl = String(process.env.MONITOR_SEED_APP_URL || 'https://inv774.goodfellowzm.com')
-    .trim()
-    .replace(/\/$/, '');
+  await seedHttpMonitorTarget({
+    name: 'APP Inventory',
+    url: 'https://inv774.goodfellowzm.com',
+    envUrlKey: 'MONITOR_SEED_APP_URL',
+  });
 
-  const [[httpExisting]] = await pool.query(
+  await seedHttpMonitorTarget({
+    name: 'APP Voucher',
+    url: 'https://vm774.goodfellowzm.com',
+    envUrlKey: 'MONITOR_SEED_VOUCHER_APP_URL',
+  });
+
+  await seedHttpMonitorTarget({
+    name: 'Goodfellow Website Server',
+    url: 'http://goodfellow.co.zm',
+    envUrlKey: 'MONITOR_SEED_WEBSITE_URL',
+  });
+
+  await seedMysqlMonitorTarget({
+    name: 'Production MySQL',
+    host: '84.247.188.115',
+    port: 3624,
+    user: 'mysql',
+    database: 'default',
+    passwordEnvKey: 'MONITOR_SEED_MYSQL_PASSWORD',
+    hostEnvKey: 'MONITOR_SEED_MYSQL_HOST',
+    portEnvKey: 'MONITOR_SEED_MYSQL_PORT',
+    userEnvKey: 'MONITOR_SEED_MYSQL_USER',
+    databaseEnvKey: 'MONITOR_SEED_MYSQL_DATABASE',
+  });
+
+  await seedMysqlMonitorTarget({
+    name: 'Voucher DB Server',
+    host: '84.247.188.115',
+    port: 3306,
+    user: 'mysql',
+    database: 'default',
+    passwordEnvKey: 'MONITOR_SEED_VOUCHER_MYSQL_PASSWORD',
+    hostEnvKey: 'MONITOR_SEED_VOUCHER_MYSQL_HOST',
+    portEnvKey: 'MONITOR_SEED_VOUCHER_MYSQL_PORT',
+    userEnvKey: 'MONITOR_SEED_VOUCHER_MYSQL_USER',
+    databaseEnvKey: 'MONITOR_SEED_VOUCHER_MYSQL_DATABASE',
+  });
+}
+
+async function seedHttpMonitorTarget({ name, url, envUrlKey }) {
+  const targetUrl = String(process.env[envUrlKey] || url).trim().replace(/\/$/, '');
+  const [[existing]] = await pool.query(
     `SELECT id FROM monitor_targets
      WHERE type = 'http'
        AND (name = ? OR host_or_url LIKE ?)
      LIMIT 1`,
-    ['APP Inventory', `${appUrl}%`],
+    [name, `${targetUrl}%`],
   );
 
-  if (!httpExisting) {
-    await createMonitorTarget({
-      name: 'APP Inventory',
-      type: 'http',
-      hostOrUrl: appUrl,
-      intervalSeconds: 300,
-      timeoutMs: 8000,
-      enabled: true,
-      allowPrivateNetwork: false,
-    });
-    console.log(`[monitor] Seeded HTTP target: APP Inventory (${appUrl})`);
-  }
+  if (existing) return;
 
-  const mysqlPassword = String(process.env.MONITOR_SEED_MYSQL_PASSWORD || '').trim();
-  if (!mysqlPassword) {
-    console.log('[monitor] MySQL seed skipped (set MONITOR_SEED_MYSQL_PASSWORD to seed database target).');
+  await createMonitorTarget({
+    name,
+    type: 'http',
+    hostOrUrl: targetUrl,
+    intervalSeconds: 300,
+    timeoutMs: 8000,
+    enabled: true,
+    allowPrivateNetwork: false,
+  });
+  console.log(`[monitor] Seeded HTTP target: ${name} (${targetUrl})`);
+}
+
+async function seedMysqlMonitorTarget({
+  name,
+  host,
+  port,
+  user,
+  database,
+  passwordEnvKey,
+  hostEnvKey,
+  portEnvKey,
+  userEnvKey,
+  databaseEnvKey,
+}) {
+  const password = String(process.env[passwordEnvKey] || '').trim();
+  if (!password) {
+    console.log(`[monitor] Skipped ${name} (set ${passwordEnvKey}).`);
     return;
   }
 
-  const mysqlHost = String(process.env.MONITOR_SEED_MYSQL_HOST || '84.247.188.115').trim();
-  const mysqlPort = Number(process.env.MONITOR_SEED_MYSQL_PORT || 3624);
-  const mysqlUser = String(process.env.MONITOR_SEED_MYSQL_USER || 'mysql').trim();
-  const mysqlDb = String(process.env.MONITOR_SEED_MYSQL_DATABASE || 'default').trim();
-  const mysqlName = String(process.env.MONITOR_SEED_MYSQL_NAME || 'Production MySQL').trim();
+  const mysqlHost = String(process.env[hostEnvKey] || host).trim();
+  const mysqlPort = Number(process.env[portEnvKey] || port);
+  const mysqlUser = String(process.env[userEnvKey] || user).trim();
+  const mysqlDb = String(process.env[databaseEnvKey] || database).trim();
 
-  const [[mysqlExisting]] = await pool.query(
+  const [[existing]] = await pool.query(
     `SELECT id FROM monitor_targets
-     WHERE type = 'mysql' AND host_or_url = ? AND port = ?
+     WHERE type = 'mysql' AND name = ?
      LIMIT 1`,
-    [mysqlHost, mysqlPort],
+    [name],
   );
 
-  if (!mysqlExisting) {
-    await createMonitorTarget({
-      name: mysqlName,
-      type: 'mysql',
-      hostOrUrl: mysqlHost,
-      port: mysqlPort,
-      dbName: mysqlDb,
-      dbUser: mysqlUser,
-      dbPassword: mysqlPassword,
-      intervalSeconds: 300,
-      timeoutMs: 15000,
-      enabled: true,
-      allowPrivateNetwork: false,
-    });
-    console.log(`[monitor] Seeded MySQL target: ${mysqlName} (${mysqlHost}:${mysqlPort}/${mysqlDb})`);
-  }
+  if (existing) return;
+
+  await createMonitorTarget({
+    name,
+    type: 'mysql',
+    hostOrUrl: mysqlHost,
+    port: mysqlPort,
+    dbName: mysqlDb,
+    dbUser: mysqlUser,
+    dbPassword: password,
+    intervalSeconds: 300,
+    timeoutMs: 15000,
+    enabled: true,
+    allowPrivateNetwork: false,
+  });
+  console.log(`[monitor] Seeded MySQL target: ${name} (${mysqlHost}:${mysqlPort}/${mysqlDb})`);
 }
