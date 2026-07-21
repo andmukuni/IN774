@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader, AdminStatCard, Card, DataTable, Spinner } from '../../components/ui';
 import InventoryWelcomeCard from '../../components/admin/InventoryWelcomeCard';
+import MonitorDashboardKpis from '../../components/admin/MonitorDashboardKpis';
 import { formatCurrency } from '../../utils/helpers';
 import { getApiBase } from '../../utils/apiBase';
 import { getAdminAuthHeaders } from '../../utils/authHeaders';
@@ -161,6 +162,8 @@ export default function AdminDashboardPage() {
       />
 
       <InventoryWelcomeCard />
+
+      <MonitorDashboardKpis />
 
       {loading && (
         <div className="flex justify-center py-16">
