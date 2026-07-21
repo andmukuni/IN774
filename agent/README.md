@@ -8,7 +8,8 @@ Regenerate after edits: `npm run docs:presence-pdf`
 ## What it does
 
 - Starts automatically when Windows boots (Windows Service)
-- Sends `POST /api/v1/presence/heartbeat` immediately, then every 5 minutes (configurable)
+- Sends `POST /api/v1/presence/heartbeat` immediately, then every 2 minutes (configurable)
+- Reports offline on clean service stop / Windows shutdown (force power-off uses server timeout)
 - Generates a stable `machineId` on first run
 - **CMD installer** lists branches, looks up the employee by email, reads the BIOS serial, creates the inventory asset if missing, assigns the employee, then installs the service
 - Ongoing heartbeats match the PC to inventory when the BIOS serial matches a product SKU
@@ -69,7 +70,7 @@ Create `config.json` from [`config.example.json`](config.example.json):
 {
   "apiUrl": "https://your-formgfl-domain.com/api/v1/presence/heartbeat",
   "apiKey": "gfl_your_api_key_here",
-  "intervalSeconds": 300
+  "intervalSeconds": 120
 }
 ```
 
@@ -160,7 +161,7 @@ Ongoing heartbeats also match BIOS serial → product **SKU**. Ensure serial num
 
 ## Offline detection
 
-FormGFL marks a device **offline** if no heartbeat is received for **15 minutes** (configurable via `PRESENCE_OFFLINE_THRESHOLD_MINUTES` on the server).
+FormGFL marks a device **offline** if no heartbeat is received for **8 minutes** (configurable via `PRESENCE_OFFLINE_THRESHOLD_MINUTES` on the server). Force power-off cannot send a goodbye packet — that timeout is what flips status.
 
 ## Rollout to many PCs
 
@@ -188,7 +189,8 @@ Recommended config path: `C:\ProgramData\GFLPresence\config.json`
 | 403 IP not whitelisted | Presence endpoints skip IP checks; for other scopes set whitelist to `*` |
 | Employee not found | Installer can register a new employee (first/last name) at the selected branch |
 | Device not linked | Re-run the CMD installer, or ensure product SKU matches BIOS serial |
-| PC shows offline | Check network/firewall allows outbound HTTPS; default interval is 5 min, offline threshold is 15 min |
+| PC shows offline | Check network/firewall allows outbound HTTPS; default interval is 2 min, offline threshold is 8 min |
+| Still online after force power-off | Wait for the 8-minute missed-heartbeat window (or redeploy server + reinstall agent 1.2+) |
 
 ## API reference
 

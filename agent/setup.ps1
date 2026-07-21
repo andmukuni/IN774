@@ -12,8 +12,8 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProgramDir = 'C:\Program Files\GFLPresence'
 $ConfigDir = 'C:\ProgramData\GFLPresence'
 $AgentExeName = 'GFLPresence.exe'
-$AgentVersion = '1.0.0'
-$InstallerVersion = '1.1.2'
+$AgentVersion = '1.2.0'
+$InstallerVersion = '1.2.0'
 
 function Write-Step([string]$Message) {
   Write-Host ""
@@ -276,7 +276,7 @@ if ($configPath) {
 
 $apiUrl = if ($config -and $config.apiUrl) { [string]$config.apiUrl } else { '' }
 $apiKey = if ($config -and $config.apiKey) { [string]$config.apiKey } else { '' }
-$intervalSeconds = if ($config -and $config.intervalSeconds) { [int]$config.intervalSeconds } else { 300 }
+$intervalSeconds = if ($config -and $config.intervalSeconds) { [int]$config.intervalSeconds } else { 120 }
 
 if (-not $apiUrl) {
   $apiUrl = Read-Host "Enter FormGFL API URL (e.g. https://inv.example.com/api/v1/presence/heartbeat)"

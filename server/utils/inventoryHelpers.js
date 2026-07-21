@@ -65,7 +65,13 @@ export const PRODUCT_SELECT_FIELDS = `
   e.employee_code, e.first_name AS employee_first_name, e.last_name AS employee_last_name,
   b.id AS branch_id, b.code AS branch_code, b.name AS branch_name,
   (
-    SELECT dp.online_status
+    SELECT CASE
+      WHEN dp.online_status = 'online'
+       AND dp.last_heartbeat_at IS NOT NULL
+       AND dp.last_heartbeat_at >= DATE_SUB(NOW(), INTERVAL 8 MINUTE)
+      THEN 'online'
+      ELSE 'offline'
+    END
     FROM device_presence dp
     WHERE dp.product_id = p.id
        OR (dp.serial_number <> '' AND dp.serial_number = p.sku)

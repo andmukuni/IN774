@@ -7,7 +7,12 @@ import {
   setPresenceBroadcastHandler,
 } from './presenceEvents.js';
 
-export const PRESENCE_OFFLINE_THRESHOLD_MINUTES = Number(process.env.PRESENCE_OFFLINE_THRESHOLD_MINUTES || 15);
+/** Missed-heartbeat window. With ~2–5 min agent interval, 8 min ≈ force-power-off detection. */
+export const PRESENCE_OFFLINE_THRESHOLD_MINUTES = Number(process.env.PRESENCE_OFFLINE_THRESHOLD_MINUTES || 8);
+
+export function presenceThresholdMinutes() {
+  return Math.max(1, Number(PRESENCE_OFFLINE_THRESHOLD_MINUTES) || 8);
+}
 
 const PRESENCE_SELECT = `
   dp.id,
@@ -46,6 +51,13 @@ function generateId(prefix = 'dpr') {
   return `${prefix}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 }
 
+function isHeartbeatStale(lastHeartbeatAt) {
+  if (!lastHeartbeatAt) return true;
+  const ageMs = Date.now() - new Date(lastHeartbeatAt).getTime();
+  if (!Number.isFinite(ageMs)) return true;
+  return ageMs > presenceThresholdMinutes() * 60 * 1000;
+}
+
 function mapPresenceRow(row) {
   if (!row) return null;
   const employeeName = [row.employee_first_name, row.employee_last_name].filter(Boolean).join(' ').trim();
@@ -55,12 +67,18 @@ function mapPresenceRow(row) {
   const lastHeartbeatAt = row.last_heartbeat_at
     ? new Date(row.last_heartbeat_at).toISOString()
     : null;
-  const onlineStatus = row.online_status || 'offline';
+  const storedStatus = String(row.online_status || 'offline').toLowerCase();
+  // Force-off / crash: DB may still say online until the sweeper runs — show offline if heartbeat is stale.
+  const onlineStatus = storedStatus === 'online' && !isHeartbeatStale(lastHeartbeatAt)
+    ? 'online'
+    : 'offline';
 
   // Prefer explicit transition time; fall back for legacy rows.
-  const durationSince = statusChangedAt
-    || (onlineStatus === 'online' ? lastHeartbeatAt : null)
-    || (row.updated_at ? new Date(row.updated_at).toISOString() : null);
+  const durationSince = onlineStatus === 'offline' && isHeartbeatStale(lastHeartbeatAt) && lastHeartbeatAt
+    ? lastHeartbeatAt
+    : statusChangedAt
+      || (onlineStatus === 'online' ? lastHeartbeatAt : null)
+      || (row.updated_at ? new Date(row.updated_at).toISOString() : null);
 
   return {
     id: row.id,
@@ -161,11 +179,17 @@ export async function upsertHeartbeat(payload = {}) {
   const loggedInUser = String(payload.loggedInUser || payload.logged_in_user || '').trim().slice(0, 120);
   const localIp = String(payload.localIp || payload.local_ip || '').trim().slice(0, 45);
   const agentVersion = String(payload.agentVersion || payload.agent_version || '').trim().slice(0, 40);
+  const requestedStatus = String(payload.status || payload.online_status || '').trim().toLowerCase();
+  const markOffline = requestedStatus === 'offline'
+    || payload.online === false
+    || payload.online === 'false'
+    || payload.online === 0;
 
   const product = await findProductBySerial(serialNumber);
   const productId = product?.id || null;
   const employeeId = product?.employee_id || null;
   const branchId = product?.branch_id || null;
+  const nextStatus = markOffline ? 'offline' : 'online';
 
   const [[existing]] = await pool.query(
     'SELECT id, online_status FROM device_presence WHERE machine_id = ? LIMIT 1',
@@ -173,7 +197,7 @@ export async function upsertHeartbeat(payload = {}) {
   );
 
   if (existing?.id) {
-    const comingOnline = existing.online_status !== 'online';
+    const statusChanged = existing.online_status !== nextStatus;
     await pool.query(
       `UPDATE device_presence
        SET product_id = ?,
@@ -184,19 +208,22 @@ export async function upsertHeartbeat(payload = {}) {
            local_ip = ?,
            agent_version = ?,
            last_heartbeat_at = NOW(),
-           online_status = 'online',
+           online_status = ?,
            status_changed_at = CASE
-             WHEN online_status != 'online' OR status_changed_at IS NULL THEN NOW()
+             WHEN online_status != ? OR status_changed_at IS NULL THEN NOW()
              ELSE status_changed_at
            END,
            employee_id = ?,
            branch_id = ?
        WHERE machine_id = ?`,
-      [productId, hostname, serialNumber, osVersion, loggedInUser, localIp, agentVersion, employeeId, branchId, machineId],
+      [
+        productId, hostname, serialNumber, osVersion, loggedInUser, localIp, agentVersion,
+        nextStatus, nextStatus, employeeId, branchId, machineId,
+      ],
     );
-    if (comingOnline) {
+    if (statusChanged) {
       schedulePresenceBroadcast({ immediate: true });
-    } else {
+    } else if (!markOffline) {
       schedulePresenceBroadcast({ delayMs: 1500 });
     }
   } else {
@@ -206,8 +233,8 @@ export async function upsertHeartbeat(payload = {}) {
          id, machine_id, product_id, hostname, serial_number, os_version,
          logged_in_user, local_ip, agent_version, last_heartbeat_at, online_status,
          status_changed_at, employee_id, branch_id
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'online', NOW(), ?, ?)`,
-      [id, machineId, productId, hostname, serialNumber, osVersion, loggedInUser, localIp, agentVersion, employeeId, branchId],
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(), ?, ?)`,
+      [id, machineId, productId, hostname, serialNumber, osVersion, loggedInUser, localIp, agentVersion, nextStatus, employeeId, branchId],
     );
     schedulePresenceBroadcast({ immediate: true });
   }
@@ -219,8 +246,8 @@ export async function upsertHeartbeat(payload = {}) {
   return mapPresenceRow(row);
 }
 
-export async function markStaleDevicesOffline() {
-  const thresholdMinutes = Math.max(1, PRESENCE_OFFLINE_THRESHOLD_MINUTES);
+export async function markStaleDevicesOffline({ notify = true } = {}) {
+  const thresholdMinutes = presenceThresholdMinutes();
   const [result] = await pool.query(
     `UPDATE device_presence
      SET online_status = 'offline',
@@ -233,20 +260,40 @@ export async function markStaleDevicesOffline() {
     [thresholdMinutes],
   );
   const marked = Number(result?.affectedRows || 0);
-  if (marked > 0) {
+  if (marked > 0 && notify) {
     schedulePresenceBroadcast({ immediate: true });
   }
   return marked;
 }
 
-export async function listPresenceDevices({ status = '', search = '', limit = 50, offset = 0 } = {}) {
+export async function listPresenceDevices({
+  status = '',
+  search = '',
+  limit = 50,
+  offset = 0,
+  sweepNotify = true,
+} = {}) {
+  // Keep DB in sync so filters/counts match what the UI shows after force shutdowns.
+  // When called from the SSE broadcaster, skip notify to avoid re-entrant broadcasts.
+  await markStaleDevicesOffline({ notify: sweepNotify });
+
   const clauses = [];
   const params = [];
+  const threshold = presenceThresholdMinutes();
 
   const normalizedStatus = String(status || '').trim().toLowerCase();
-  if (normalizedStatus === 'online' || normalizedStatus === 'offline') {
-    clauses.push('dp.online_status = ?');
-    params.push(normalizedStatus);
+  if (normalizedStatus === 'online') {
+    clauses.push(`dp.online_status = 'online'
+      AND dp.last_heartbeat_at IS NOT NULL
+      AND dp.last_heartbeat_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)`);
+    params.push(threshold);
+  } else if (normalizedStatus === 'offline') {
+    clauses.push(`(
+      dp.online_status != 'online'
+      OR dp.last_heartbeat_at IS NULL
+      OR dp.last_heartbeat_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)
+    )`);
+    params.push(threshold);
   }
 
   const term = String(search || '').trim();
@@ -304,13 +351,27 @@ export async function getPresenceDevice(id) {
 }
 
 export async function getPresenceSummary() {
-  const [[row]] = await pool.query(`
+  // Sweep without nested SSE broadcast (caller / scheduler handles notify).
+  await markStaleDevicesOffline({ notify: false });
+  const threshold = presenceThresholdMinutes();
+  const [[row]] = await pool.query(
+    `
     SELECT
       COUNT(*) AS total,
-      SUM(CASE WHEN online_status = 'online' THEN 1 ELSE 0 END) AS online_count,
-      SUM(CASE WHEN online_status = 'offline' THEN 1 ELSE 0 END) AS offline_count
+      SUM(CASE
+        WHEN online_status = 'online'
+         AND last_heartbeat_at IS NOT NULL
+         AND last_heartbeat_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
+        THEN 1 ELSE 0 END) AS online_count,
+      SUM(CASE
+        WHEN online_status != 'online'
+          OR last_heartbeat_at IS NULL
+          OR last_heartbeat_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)
+        THEN 1 ELSE 0 END) AS offline_count
     FROM device_presence
-  `);
+    `,
+    [threshold, threshold],
+  );
   return {
     total: Number(row?.total || 0),
     online: Number(row?.online_count || 0),
@@ -320,10 +381,8 @@ export async function getPresenceSummary() {
 
 export async function broadcastPresenceSnapshot() {
   if (!hasPresenceStreamClients()) return null;
-  const [result, summary] = await Promise.all([
-    listPresenceDevices({ limit: 200, offset: 0 }),
-    getPresenceSummary(),
-  ]);
+  const result = await listPresenceDevices({ limit: 200, offset: 0, sweepNotify: false });
+  const summary = await getPresenceSummary();
   const payload = {
     devices: result.data,
     summary,

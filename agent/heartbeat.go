@@ -11,16 +11,17 @@ import (
 )
 
 type HeartbeatPayload struct {
-	MachineID     string `json:"machineId"`
-	Hostname      string `json:"hostname"`
-	SerialNumber  string `json:"serialNumber"`
-	OSVersion     string `json:"osVersion"`
-	LoggedInUser  string `json:"loggedInUser"`
-	LocalIP       string `json:"localIp"`
-	AgentVersion  string `json:"agentVersion"`
+	MachineID    string `json:"machineId"`
+	Hostname     string `json:"hostname"`
+	SerialNumber string `json:"serialNumber"`
+	OSVersion    string `json:"osVersion"`
+	LoggedInUser string `json:"loggedInUser"`
+	LocalIP      string `json:"localIp"`
+	AgentVersion string `json:"agentVersion"`
+	Status       string `json:"status,omitempty"`
 }
 
-func sendHeartbeat(cfg *Config, machineID string, info MachineInfo) error {
+func sendHeartbeat(cfg *Config, machineID string, info MachineInfo, status string) error {
 	payload := HeartbeatPayload{
 		MachineID:    machineID,
 		Hostname:     info.Hostname,
@@ -29,6 +30,7 @@ func sendHeartbeat(cfg *Config, machineID string, info MachineInfo) error {
 		LoggedInUser: info.LoggedInUser,
 		LocalIP:      info.LocalIP,
 		AgentVersion: agentVersion,
+		Status:       status,
 	}
 
 	body, err := json.Marshal(payload)
@@ -36,7 +38,13 @@ func sendHeartbeat(cfg *Config, machineID string, info MachineInfo) error {
 		return err
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	timeout := 30 * time.Second
+	if status == "offline" {
+		// Service stop / shutdown window is short on Windows.
+		timeout = 8 * time.Second
+	}
+
+	client := &http.Client{Timeout: timeout}
 	req, err := http.NewRequest(http.MethodPost, cfg.APIURL, bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -64,7 +72,7 @@ func sendHeartbeatWithRetry(cfg *Config, machineID string, info MachineInfo) {
 		if delay > 0 {
 			time.Sleep(delay)
 		}
-		if err := sendHeartbeat(cfg, machineID, info); err != nil {
+		if err := sendHeartbeat(cfg, machineID, info, "online"); err != nil {
 			logMsg(fmt.Sprintf("heartbeat attempt %d failed: %v", i+1, err))
 			continue
 		}
@@ -72,6 +80,14 @@ func sendHeartbeatWithRetry(cfg *Config, machineID string, info MachineInfo) {
 		return
 	}
 	logMsg("heartbeat failed after retries")
+}
+
+func sendOfflineGoodbye(cfg *Config, machineID string, info MachineInfo) {
+	if err := sendHeartbeat(cfg, machineID, info, "offline"); err != nil {
+		logMsg(fmt.Sprintf("offline goodbye failed: %v", err))
+		return
+	}
+	logMsg("offline goodbye sent")
 }
 
 func newUUID() (string, error) {

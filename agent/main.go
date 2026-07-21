@@ -25,7 +25,15 @@ func (p *program) Start(s service.Service) error {
 }
 
 func (p *program) Stop(s service.Service) error {
-	close(p.stopCh)
+	// Best-effort offline report on clean stop / Restart / Shutdown.
+	// Hard power-off cannot run this — server uses missed-heartbeat timeout instead.
+	if p.cfg != nil && p.machineID != "" {
+		info := collectMachineInfo()
+		sendOfflineGoodbye(p.cfg, p.machineID, info)
+	}
+	if p.stopCh != nil {
+		close(p.stopCh)
+	}
 	return nil
 }
 

@@ -1,5 +1,5 @@
 {
   "apiUrl": "https://your-formgfl-domain.com/api/v1/presence/heartbeat",
   "apiKey": "gfl_your_api_key_here",
-  "intervalSeconds": 300
+  "intervalSeconds": 120
 }

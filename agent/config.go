@@ -12,7 +12,7 @@ const (
 	defaultConfigDir  = `C:\ProgramData\GFLPresence`
 	defaultConfigName = "config.json"
 	defaultMachineID  = "machine-id.txt"
-	agentVersion      = "1.0.0"
+	agentVersion      = "1.2.0"
 )
 
 type Config struct {
@@ -26,8 +26,9 @@ func (c *Config) normalize() error {
 	if c.ConfigDir == "" {
 		c.ConfigDir = defaultConfigDir
 	}
+	// Default 2 minutes so force power-off is detected within ~8 minutes server-side.
 	if c.IntervalSeconds <= 0 {
-		c.IntervalSeconds = 300
+		c.IntervalSeconds = 120
 	}
 	if c.APIURL == "" {
 		return fmt.Errorf("apiUrl is required in config.json")

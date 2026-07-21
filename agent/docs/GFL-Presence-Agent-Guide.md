@@ -15,7 +15,7 @@ The **GFL Presence Agent** is a small Windows program that runs as a background 
 | Action | Detail |
 |--------|--------|
 | Starts on boot | Runs automatically as a Windows Service |
-| Sends heartbeats | Immediately on start, then every **5 minutes** (configurable) |
+| Sends heartbeats | Immediately on start, then every **2 minutes** (configurable) |
 | Identifies the PC | Uses a stable machine ID, hostname, and BIOS serial number |
 | Links to inventory | CMD installer creates asset if missing, then assigns employee; heartbeats match BIOS serial → SKU |
 | Reports status only | Sends hostname, serial, OS, logged-in user, and LAN IP — **no files or process data** |
@@ -24,7 +24,8 @@ The **GFL Presence Agent** is a small Windows program that runs as a background 
 
 ```
 PC boots  →  Agent starts  →  POST heartbeat  →  FormGFL marks device ONLINE
-PC sleeps / network lost  →  No heartbeat for 15 min  →  FormGFL marks device OFFLINE
+PC sleeps / hard power-off  →  No heartbeat for ~8 min  →  FormGFL marks device OFFLINE
+Clean shutdown / service stop  →  Agent sends offline goodbye  →  FormGFL marks OFFLINE immediately
 ```
 
 View all devices in FormGFL admin: **System → Devices Online**
@@ -152,7 +153,7 @@ Create `config.json` for each PC (or use the same file for all PCs in your organ
 {
   "apiUrl": "https://your-formgfl-domain.com/api/v1/presence/heartbeat",
   "apiKey": "gfl_your_api_key_here",
-  "intervalSeconds": 300
+  "intervalSeconds": 120
 }
 ```
 
@@ -160,7 +161,7 @@ Create `config.json` for each PC (or use the same file for all PCs in your organ
 |-------|-------------|
 | `apiUrl` | Full URL to your FormGFL heartbeat endpoint. Must use **HTTPS** in production. |
 | `apiKey` | The `gfl_...` key from Phase 1 |
-| `intervalSeconds` | Seconds between heartbeats. Default: **300** (5 minutes) |
+| `intervalSeconds` | Seconds between heartbeats. Default: **120** (2 minutes) |
 
 ---
 
@@ -299,7 +300,8 @@ For organization-wide deployment, use one of these methods:
 | 403 IP not whitelisted | Set API key whitelist to `0.0.0.0/0` in Admin → Developer |
 | Employee not found | Email must exist for the selected branch in FormGFL |
 | Device not linked to employee | Re-run `Install-GFLPresence.cmd` as Administrator |
-| PC shows offline | Check network/firewall allows outbound HTTPS; heartbeat every 5 min, offline after 15 min |
+| PC shows offline | Check network/firewall allows outbound HTTPS; heartbeat every 2 min, offline after ~8 min |
+| Still online after holding power button | Expected until the 8-minute missed-heartbeat timeout (hard power-off cannot send goodbye) |
 | PC not appearing at all | Confirm service is running; check Event Viewer for errors |
 
 ---
