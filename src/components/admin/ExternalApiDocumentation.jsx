@@ -1,16 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  BookOpen,
-  Copy,
-  Download,
-  Shield,
-} from 'lucide-react';
+import { Copy } from 'lucide-react';
 import {
   EXTERNAL_API_DOC_GROUPS,
   EXTERNAL_API_ENDPOINT_DOCS,
-  EXTERNAL_API_ERRORS,
-  EXTERNAL_API_PAGINATION,
 } from '../../../shared/externalApiDocs.js';
 
 function MethodBadge({ method }) {
@@ -173,8 +166,6 @@ function OverviewPanel({
   baseUrl,
   exampleCurl,
   onCopy,
-  onDownloadCollection,
-  onDownloadEnvironment,
 }) {
   const metaEndpoints = useMemo(
     () => EXTERNAL_API_ENDPOINT_DOCS.filter((e) => e.group === 'meta'),
@@ -223,100 +214,6 @@ function OverviewPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-navy-100 bg-navy-50/40 p-4">
-          <p className="text-sm font-medium text-navy-900">{EXTERNAL_API_PAGINATION.title}</p>
-          <p className="mt-1 text-sm text-navy-600">{EXTERNAL_API_PAGINATION.description}</p>
-          <ul className="mt-3 space-y-1 text-xs text-navy-600">
-            {EXTERNAL_API_PAGINATION.params.map((param) => (
-              <li key={param.name}>
-                <code className="text-navy-800">{param.name}</code>
-                {' '}
-                <span className="text-navy-400">({param.type})</span>
-                {' — '}
-                {param.description}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="rounded-xl border border-navy-100 bg-navy-50/40 p-4">
-          <p className="text-sm font-medium text-navy-900">Error responses</p>
-          <p className="mt-1 text-sm text-navy-600">
-            All errors return JSON: <code>{'{ ok: false, message: "…" }'}</code>
-          </p>
-          <ul className="mt-3 space-y-1.5 text-xs text-navy-600">
-            {EXTERNAL_API_ERRORS.map((error) => (
-              <li key={error.status}>
-                <span className="font-semibold text-navy-800">{error.status}</span>
-                {' — '}
-                {error.meaning}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-navy-100 bg-white p-4">
-        <p className="text-sm font-medium text-navy-900">Postman</p>
-        <p className="mt-1 text-sm text-navy-600">
-          Download both files, import them into Postman, select the environment, and set your
-          <code className="mx-1 rounded bg-navy-50 px-1.5 py-0.5">apiKey</code>
-          variable before sending requests.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onDownloadCollection}
-            className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-700 hover:bg-navy-50"
-          >
-            <Download size={16} />
-            Download collection
-          </button>
-          <button
-            type="button"
-            onClick={onDownloadEnvironment}
-            className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-700 hover:bg-navy-50"
-          >
-            <Download size={16} />
-            Download environment
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 text-sm text-navy-700">
-        <div className="rounded-xl border border-navy-100 bg-navy-50/40 p-4">
-          <div className="mb-2 flex items-center gap-2 text-navy-900">
-            <Shield size={15} className="text-cyan-600" />
-            <p className="font-medium">Server whitelisting</p>
-          </div>
-          <p>
-            By default each API key can restrict allowed server IPs or CIDR ranges
-            (for example <code>203.0.113.10</code> or <code>198.51.100.0/24</code>).
-            Use <code>*</code> (or leave blank) to allow <strong>any IP</strong> — required for
-            PC presence agents that run from different offices/networks.
-            Presence endpoints (<code>presence.report</code> / <code>presence.enroll</code>)
-            always skip IP checks and rely on the API key alone.
-            Call <code>GET /api/v1/ip-check</code> with your API key to see the IP the server detects.
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-navy-100 bg-navy-50/40 p-4">
-          <div className="mb-2 flex items-center gap-2 text-navy-900">
-            <BookOpen size={15} className="text-cyan-600" />
-            <p className="font-medium">Asset ↔ employee link</p>
-          </div>
-          <p>
-            Assets include an <code>employee</code> object when assigned.
-            Use <code>/assignments</code> for a flat list, or
-            {' '}
-            <code>/employees/:id/assets</code>
-            {' '}
-            for one employee&apos;s assets.
-          </p>
-        </div>
-      </div>
-
       <div>
         <p className="mb-3 text-sm font-medium text-navy-900">Utility endpoints</p>
         <ResourceEndpointPanel endpoints={metaEndpoints} baseUrl={baseUrl} onCopy={onCopy} />
@@ -356,8 +253,6 @@ export default function ExternalApiDocumentation({
   baseUrl,
   exampleCurl,
   onCopy,
-  onDownloadCollection,
-  onDownloadEnvironment,
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -388,8 +283,6 @@ export default function ExternalApiDocumentation({
           baseUrl={baseUrl}
           exampleCurl={exampleCurl}
           onCopy={onCopy}
-          onDownloadCollection={onDownloadCollection}
-          onDownloadEnvironment={onDownloadEnvironment}
         />
       ) : (
         <ResourceEndpointPanel
