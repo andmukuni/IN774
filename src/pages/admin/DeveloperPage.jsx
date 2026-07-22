@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  BookOpen,
   Code2,
   Copy,
   Download,
@@ -324,232 +323,159 @@ export default function DeveloperPage() {
             </SummaryTile>
           </div>
 
-          <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
-            <div className="space-y-6 xl:col-span-7 order-2 xl:order-1">
-              <Card
-                title="Quick start"
-                subtitle="Copy a sample request to test the API"
-              >
-                <pre className="overflow-x-auto rounded-xl bg-navy-900 p-4 text-xs leading-relaxed text-cyan-100">{exampleCurl}</pre>
-              </Card>
+          <Card
+            title="API keys"
+            subtitle={canManage ? 'Create credentials for external systems' : 'View-only access'}
+          >
+            {keysLoading ? (
+              <div className="flex justify-center py-10">
+                <Spinner size={32} className="text-cyan-600" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                {canManage && (
+                  <form onSubmit={handleCreate} className="space-y-4 rounded-xl border border-cyan-100 bg-cyan-50/30 p-4">
+                    <p className="text-sm font-medium text-navy-900">Create new key</p>
 
-              <Card
-                title="Postman"
-                subtitle="Import ready-made files to test all endpoints"
-              >
-                <p className="mb-4 text-sm text-navy-600">
-                  Download both files, import them into Postman, select the environment, and set your
-                  <code className="mx-1 rounded bg-navy-50 px-1.5 py-0.5">apiKey</code>
-                  variable before sending requests.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={downloadPostmanCollection}
-                    className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-700 hover:bg-navy-50"
-                  >
-                    <Download size={16} />
-                    Download collection
-                  </button>
-                  <button
-                    type="button"
-                    onClick={downloadPostmanEnvironment}
-                    className="inline-flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm font-medium text-navy-700 hover:bg-navy-50"
-                  >
-                    <Download size={16} />
-                    Download environment
-                  </button>
-                </div>
-              </Card>
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-medium text-navy-700">Integration name</span>
+                      <input
+                        className="w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
+                        value={form.name}
+                        onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                        placeholder="HR system, asset tracker..."
+                        required
+                      />
+                    </label>
 
-              <Card title="API documentation" subtitle="Endpoints, parameters, and response examples">
-                <ExternalApiDocumentation baseUrl={apiBaseUrl} />
-              </Card>
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-medium text-navy-700">Allowed server IPs / CIDR</span>
+                      <textarea
+                        className="min-h-[88px] w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
+                        value={form.ipWhitelist}
+                        onChange={(e) => setForm((p) => ({ ...p, ipWhitelist: e.target.value }))}
+                        placeholder={'*\n# or restrict:\n# 203.0.113.10\n# 198.51.100.0/24'}
+                      />
+                      <span className="mt-1 block text-xs text-navy-500">
+                        One IP or CIDR per line. Use <code>*</code> or leave blank to allow any IP (recommended for presence agents).
+                      </span>
+                    </label>
 
-              <Card
-                title="Integration notes"
-                subtitle="Security and data relationships"
-              >
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 text-sm text-navy-700">
-                  <div className="rounded-xl border border-navy-100 bg-navy-50/40 p-4">
-                    <div className="mb-2 flex items-center gap-2 text-navy-900">
-                      <Shield size={15} className="text-cyan-600" />
-                      <p className="font-medium">Server whitelisting</p>
-                    </div>
-                    <p>
-                      By default each API key can restrict allowed server IPs or CIDR ranges
-                      (for example <code>203.0.113.10</code> or <code>198.51.100.0/24</code>).
-                      Use <code>*</code> (or leave blank) to allow <strong>any IP</strong> — required for
-                      PC presence agents that run from different offices/networks.
-                      Presence endpoints (<code>presence.report</code> / <code>presence.enroll</code>)
-                      always skip IP checks and rely on the API key alone.
-                      Call <code>GET /api/v1/ip-check</code> with your API key to see the IP the server detects.
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-navy-100 bg-navy-50/40 p-4">
-                    <div className="mb-2 flex items-center gap-2 text-navy-900">
-                      <BookOpen size={15} className="text-cyan-600" />
-                      <p className="font-medium">Asset ↔ employee link</p>
-                    </div>
-                    <p>
-                      Assets include an <code>employee</code> object when assigned.
-                      Use <code>/assignments</code> for a flat list, or
-                      <code>/employees/:id/assets</code> for one employee&apos;s assets.
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            </div>
-
-            <div className="xl:col-span-5 order-1 xl:order-2">
-              <div className="xl:sticky xl:top-[4.5rem]">
-                <Card
-                  title="API keys"
-                  subtitle={canManage ? 'Create credentials for external systems' : 'View-only access'}
-                >
-                  {keysLoading ? (
-                    <div className="flex justify-center py-10">
-                      <Spinner size={32} className="text-cyan-600" />
-                    </div>
-                  ) : (
-                    <div className="space-y-5">
-                      {canManage && (
-                        <form onSubmit={handleCreate} className="space-y-4 rounded-xl border border-cyan-100 bg-cyan-50/30 p-4">
-                          <p className="text-sm font-medium text-navy-900">Create new key</p>
-
-                          <label className="block">
-                            <span className="mb-1.5 block text-sm font-medium text-navy-700">Integration name</span>
+                    <div>
+                      <p className="mb-2 text-sm font-medium text-navy-700">Scopes</p>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {EXTERNAL_API_SCOPES.map((scope) => (
+                          <label key={scope.key} className="flex items-start gap-2 rounded-lg border border-navy-100 bg-white px-3 py-2">
                             <input
-                              className="w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
-                              value={form.name}
-                              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                              placeholder="HR system, asset tracker..."
-                              required
+                              type="checkbox"
+                              checked={form.scopes.includes(scope.key)}
+                              onChange={() => toggleScope(scope.key)}
+                              className="mt-1"
                             />
-                          </label>
-
-                          <label className="block">
-                            <span className="mb-1.5 block text-sm font-medium text-navy-700">Allowed server IPs / CIDR</span>
-                            <textarea
-                              className="min-h-[88px] w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
-                              value={form.ipWhitelist}
-                              onChange={(e) => setForm((p) => ({ ...p, ipWhitelist: e.target.value }))}
-                              placeholder={'*\n# or restrict:\n# 203.0.113.10\n# 198.51.100.0/24'}
-                            />
-                            <span className="mt-1 block text-xs text-navy-500">
-                              One IP or CIDR per line. Use <code>*</code> or leave blank to allow any IP (recommended for presence agents).
+                            <span>
+                              <span className="block text-sm font-medium text-navy-900">{scope.name}</span>
+                              <span className="block text-xs text-navy-500">{scope.key}</span>
                             </span>
                           </label>
-
-                          <div>
-                            <p className="mb-2 text-sm font-medium text-navy-700">Scopes</p>
-                            <div className="space-y-2">
-                              {EXTERNAL_API_SCOPES.map((scope) => (
-                                <label key={scope.key} className="flex items-start gap-2 rounded-lg border border-navy-100 bg-white px-3 py-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={form.scopes.includes(scope.key)}
-                                    onChange={() => toggleScope(scope.key)}
-                                    className="mt-1"
-                                  />
-                                  <span>
-                                    <span className="block text-sm font-medium text-navy-900">{scope.name}</span>
-                                    <span className="block text-xs text-navy-500">{scope.key}</span>
-                                  </span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-
-                          <LoadingButton
-                            type="submit"
-                            loading={saving}
-                            loadingLabel="Creating..."
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-500"
-                          >
-                            <PlusCircle size={16} />
-                            Create API key
-                          </LoadingButton>
-                        </form>
-                      )}
-
-                      <div>
-                        <p className="mb-3 text-sm font-medium text-navy-900">
-                          {keys.length === 0 ? 'No keys yet' : `${keys.length} key${keys.length === 1 ? '' : 's'}`}
-                        </p>
-
-                        {keys.length === 0 ? (
-                          <p className="rounded-xl border border-dashed border-navy-200 bg-navy-50/40 px-4 py-6 text-center text-sm text-navy-500">
-                            Create a key to share inventory data with another system.
-                          </p>
-                        ) : (
-                          <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
-                            {keys.map((key) => {
-                              const scopes = Array.isArray(key.scopes) ? key.scopes : [];
-                              const ipWhitelist = Array.isArray(key.ipWhitelist) ? key.ipWhitelist : [];
-                              return (
-                                <div key={key.id} className="rounded-xl border border-navy-100 bg-white p-4">
-                                  <div className="flex flex-col gap-3">
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <KeyRound size={15} className="shrink-0 text-cyan-600" />
-                                          <p className="truncate font-semibold text-navy-900">{key.name}</p>
-                                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${key.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-navy-100 text-navy-600'}`}>
-                                            {key.status}
-                                          </span>
-                                        </div>
-                                        <p className="mt-1 text-xs text-navy-600">
-                                          Prefix: <code>{key.maskedKey}</code>
-                                        </p>
-                                      </div>
-                                    </div>
-
-                                    <div className="space-y-1 text-xs text-navy-500">
-                                      <p><span className="font-medium text-navy-600">Scopes:</span> {scopes.join(', ') || '—'}</p>
-                                      <p className="break-words">
-                                        <span className="font-medium text-navy-600">Whitelist:</span> {ipWhitelist.join(', ') || '—'}
-                                      </p>
-                                      <p>
-                                        <span className="font-medium text-navy-600">Last used:</span> {formatDateTime(key.lastUsedAt)}
-                                        {' · '}
-                                        <span className="font-medium text-navy-600">Created:</span> {formatDateTime(key.createdAt)}
-                                      </p>
-                                    </div>
-
-                                    {canManage && (
-                                      <div className="flex flex-wrap gap-2 border-t border-navy-100 pt-3">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleToggleStatus(key)}
-                                          className="rounded-lg border border-navy-200 px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50"
-                                        >
-                                          {key.status === 'active' ? 'Deactivate' : 'Activate'}
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => setDeleteTarget(key)}
-                                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
-                                        >
-                                          <Trash2 size={14} />
-                                          Delete
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                        ))}
                       </div>
                     </div>
+
+                    <LoadingButton
+                      type="submit"
+                      loading={saving}
+                      loadingLabel="Creating..."
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-500"
+                    >
+                      <PlusCircle size={16} />
+                      Create API key
+                    </LoadingButton>
+                  </form>
+                )}
+
+                <div className={canManage ? '' : 'lg:col-span-2'}>
+                  <p className="mb-3 text-sm font-medium text-navy-900">
+                    {keys.length === 0 ? 'No keys yet' : `${keys.length} key${keys.length === 1 ? '' : 's'}`}
+                  </p>
+
+                  {keys.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-navy-200 bg-navy-50/40 px-4 py-6 text-center text-sm text-navy-500">
+                      Create a key to share inventory data with another system.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 max-h-[640px] overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                      {keys.map((key) => {
+                        const scopes = Array.isArray(key.scopes) ? key.scopes : [];
+                        const ipWhitelist = Array.isArray(key.ipWhitelist) ? key.ipWhitelist : [];
+                        return (
+                          <div key={key.id} className="rounded-xl border border-navy-100 bg-white p-4">
+                            <div className="flex flex-col gap-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <KeyRound size={15} className="shrink-0 text-cyan-600" />
+                                    <p className="truncate font-semibold text-navy-900">{key.name}</p>
+                                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${key.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-navy-100 text-navy-600'}`}>
+                                      {key.status}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-xs text-navy-600">
+                                    Prefix: <code>{key.maskedKey}</code>
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="space-y-1 text-xs text-navy-500">
+                                <p><span className="font-medium text-navy-600">Scopes:</span> {scopes.join(', ') || '—'}</p>
+                                <p className="break-words">
+                                  <span className="font-medium text-navy-600">Whitelist:</span> {ipWhitelist.join(', ') || '—'}
+                                </p>
+                                <p>
+                                  <span className="font-medium text-navy-600">Last used:</span> {formatDateTime(key.lastUsedAt)}
+                                  {' · '}
+                                  <span className="font-medium text-navy-600">Created:</span> {formatDateTime(key.createdAt)}
+                                </p>
+                              </div>
+
+                              {canManage && (
+                                <div className="flex flex-wrap gap-2 border-t border-navy-100 pt-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleStatus(key)}
+                                    className="rounded-lg border border-navy-200 px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                                  >
+                                    {key.status === 'active' ? 'Deactivate' : 'Activate'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget(key)}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+                                  >
+                                    <Trash2 size={14} />
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
-                </Card>
+                </div>
               </div>
-            </div>
-          </div>
+            )}
+          </Card>
+
+          <Card title="API documentation" subtitle="Endpoints, parameters, and response examples">
+            <ExternalApiDocumentation
+              baseUrl={apiBaseUrl}
+              exampleCurl={exampleCurl}
+              onCopy={copyText}
+              onDownloadCollection={downloadPostmanCollection}
+              onDownloadEnvironment={downloadPostmanEnvironment}
+            />
+          </Card>
         </>
       )}
 

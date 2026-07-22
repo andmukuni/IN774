@@ -28,9 +28,19 @@ export const EXTERNAL_API_ERRORS = [
   { status: 500, meaning: 'Server error.' },
 ];
 
+export const EXTERNAL_API_DOC_GROUPS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'assets', label: 'Assets' },
+  { id: 'employees', label: 'Employees' },
+  { id: 'assignments', label: 'Assignments' },
+  { id: 'monitor', label: 'Monitor' },
+  { id: 'presence', label: 'Presence' },
+];
+
 export const EXTERNAL_API_ENDPOINT_DOCS = [
   {
     id: 'ip-check',
+    group: 'meta',
     method: 'GET',
     path: '/ip-check',
     scope: 'Any valid API key',
@@ -48,6 +58,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'health',
+    group: 'meta',
     method: 'GET',
     path: '/health',
     scope: 'Public',
@@ -61,6 +72,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'assets-list',
+    group: 'assets',
     method: 'GET',
     path: '/assets',
     scope: 'assets.read',
@@ -94,6 +106,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'assets-get',
+    group: 'assets',
     method: 'GET',
     path: '/assets/:id',
     scope: 'assets.read',
@@ -113,6 +126,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'employees-list',
+    group: 'employees',
     method: 'GET',
     path: '/employees',
     scope: 'employees.read',
@@ -147,6 +161,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'employees-get',
+    group: 'employees',
     method: 'GET',
     path: '/employees/:id',
     scope: 'employees.read',
@@ -165,6 +180,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'employees-assets',
+    group: 'employees',
     method: 'GET',
     path: '/employees/:id/assets',
     scope: 'employees.read',
@@ -182,6 +198,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'assignments-list',
+    group: 'assignments',
     method: 'GET',
     path: '/assignments',
     scope: 'assignments.read',
@@ -214,6 +231,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'monitor-list',
+    group: 'monitor',
     method: 'GET',
     path: '/monitor',
     scope: 'monitor.read',
@@ -251,6 +269,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'monitor-get',
+    group: 'monitor',
     method: 'GET',
     path: '/monitor/:id',
     scope: 'monitor.read',
@@ -273,6 +292,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'presence-heartbeat',
+    group: 'presence',
     method: 'POST',
     path: '/presence/heartbeat',
     scope: 'presence.report',
@@ -291,6 +311,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'presence-setup-branches',
+    group: 'presence',
     method: 'GET',
     path: '/presence/setup/branches',
     scope: 'presence.enroll',
@@ -303,6 +324,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'presence-setup-lookup',
+    group: 'presence',
     method: 'POST',
     path: '/presence/setup/lookup',
     scope: 'presence.enroll',
@@ -321,6 +343,7 @@ export const EXTERNAL_API_ENDPOINT_DOCS = [
   },
   {
     id: 'presence-setup-enroll',
+    group: 'presence',
     method: 'POST',
     path: '/presence/setup/enroll',
     scope: 'presence.enroll',
