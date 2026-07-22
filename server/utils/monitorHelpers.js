@@ -715,6 +715,14 @@ export async function seedMonitorTargets() {
     envUrlKey: 'MONITOR_SEED_KENAC_APP_URL',
   });
 
+  await seedTcpMonitorTarget({
+    name: 'Sage200 Server',
+    host: '102.23.120.197',
+    port: 50090,
+    hostEnvKey: 'MONITOR_SEED_SAGE200_HOST',
+    portEnvKey: 'MONITOR_SEED_SAGE200_PORT',
+  });
+
   await seedMysqlMonitorTarget({
     name: 'Kenac DB Server',
     host: '84.247.188.115',

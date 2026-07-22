@@ -15,6 +15,11 @@ export const EXTERNAL_API_SCOPES = [
     description: 'View asset-to-employee assignment links.',
   },
   {
+    key: 'monitor.read',
+    name: 'Read monitor',
+    description: 'List and view server/database monitor targets and their current status.',
+  },
+  {
     key: 'presence.report',
     name: 'Report PC presence',
     description: 'Send heartbeat POSTs from Windows agents to report machine online status.',

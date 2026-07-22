@@ -68,6 +68,7 @@ export function buildExternalApiPostmanCollection(baseUrl = '/api/v1') {
       { key: 'apiKey', value: '' },
       { key: 'assetId', value: '' },
       { key: 'employeeId', value: '' },
+      { key: 'monitorId', value: '' },
     ],
     item: [
       {
@@ -129,6 +130,23 @@ export function buildExternalApiPostmanCollection(baseUrl = '/api/v1') {
           }),
         ],
       },
+      {
+        name: 'Monitor',
+        item: [
+          getItem('List monitor targets', '{{baseUrl}}/monitor', {
+            description: 'Requires monitor.read scope. Same status data as Admin → Monitor.',
+            query: [
+              { key: 'search', value: '', description: 'Search by name, host/URL, or type' },
+              { key: 'type', value: '', description: 'http | tcp | mysql' },
+              { key: 'status', value: '', description: 'up | down | unknown' },
+              { key: 'enabled', value: '', description: 'true | false' },
+            ],
+          }),
+          getItem('Get monitor target by ID', '{{baseUrl}}/monitor/{{monitorId}}', {
+            description: 'Requires monitor.read scope. Set the monitorId collection variable first.',
+          }),
+        ],
+      },
     ],
   };
 }
@@ -160,6 +178,12 @@ export function buildExternalApiPostmanEnvironment(baseUrl = '/api/v1') {
       },
       {
         key: 'employeeId',
+        value: '',
+        type: 'default',
+        enabled: true,
+      },
+      {
+        key: 'monitorId',
         value: '',
         type: 'default',
         enabled: true,

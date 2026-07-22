@@ -100,4 +100,28 @@ export function mapExternalAssignment(row) {
   };
 }
 
+export function mapExternalMonitorTarget(target) {
+  if (!target) return null;
+  return {
+    id: target.id,
+    name: target.name,
+    type: target.type,
+    hostOrUrl: target.hostOrUrl,
+    port: target.port,
+    path: target.path || '',
+    enabled: Boolean(target.enabled),
+    status: target.status || 'unknown',
+    consecutiveFailures: Number(target.consecutiveFailures) || 0,
+    lastCheckedAt: target.lastCheckedAt || null,
+    lastLatencyMs: target.lastLatencyMs == null ? null : Number(target.lastLatencyMs),
+    avgLatencyMs: target.avgLatencyMs == null ? null : Number(target.avgLatencyMs),
+    lastError: target.lastError || null,
+    intervalSeconds: Number(target.intervalSeconds) || null,
+    timeoutMs: Number(target.timeoutMs) || null,
+    speed: target.speed || null,
+    traffic: target.traffic || null,
+    updatedAt: target.updatedAt || null,
+  };
+}
+
 export { PRODUCT_JOIN_SQL, PRODUCT_SELECT_FIELDS };

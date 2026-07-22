@@ -7,6 +7,7 @@ import {
   mapExternalAsset,
   mapExternalAssignment,
   mapExternalEmployee,
+  mapExternalMonitorTarget,
   PRODUCT_JOIN_SQL,
   PRODUCT_SELECT_FIELDS,
 } from '../utils/externalApiHelpers.js';
@@ -16,6 +17,10 @@ import {
   listSetupBranches,
   lookupSetupEmployee,
 } from '../utils/presenceEnrollHelpers.js';
+import {
+  getMonitorTarget,
+  listMonitorTargetsWithTelemetry,
+} from '../utils/monitorHelpers.js';
 
 function parseListQuery(query) {
   const q = parseTableQuery(query, { defaultLimit: 50, maxLimit: 200 });
@@ -306,6 +311,51 @@ export function createExternalRouter() {
       res.json(buildPaginatedResponse(rows.map(mapExternalAssignment), total, q));
     } catch (error) {
       res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.get('/monitor', createExternalApiAuth('monitor.read'), async (req, res) => {
+    try {
+      const search = String(req.query.search || '').trim().toLowerCase();
+      const type = String(req.query.type || '').trim().toLowerCase();
+      const status = String(req.query.status || '').trim().toLowerCase();
+      const enabledRaw = String(req.query.enabled ?? '').trim().toLowerCase();
+
+      let targets = await listMonitorTargetsWithTelemetry();
+
+      if (search) {
+        targets = targets.filter((t) => {
+          const haystack = `${t.name || ''} ${t.hostOrUrl || ''} ${t.type || ''}`.toLowerCase();
+          return haystack.includes(search);
+        });
+      }
+      if (type) {
+        targets = targets.filter((t) => String(t.type || '').toLowerCase() === type);
+      }
+      if (status) {
+        targets = targets.filter((t) => String(t.status || '').toLowerCase() === status);
+      }
+      if (enabledRaw === 'true' || enabledRaw === '1') {
+        targets = targets.filter((t) => t.enabled);
+      } else if (enabledRaw === 'false' || enabledRaw === '0') {
+        targets = targets.filter((t) => !t.enabled);
+      }
+
+      res.json({ ok: true, data: targets.map(mapExternalMonitorTarget) });
+    } catch (error) {
+      res.status(500).json({ ok: false, message: error.message });
+    }
+  });
+
+  router.get('/monitor/:id', createExternalApiAuth('monitor.read'), async (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim();
+      const target = await getMonitorTarget(id);
+      const [withTelemetry] = (await listMonitorTargetsWithTelemetry())
+        .filter((t) => t.id === id);
+      res.json({ ok: true, data: mapExternalMonitorTarget(withTelemetry || target) });
+    } catch (error) {
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
