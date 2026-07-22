@@ -6,6 +6,8 @@ import {
   Globe,
   KeyRound,
   PlusCircle,
+  Power,
+  PowerOff,
   Shield,
   Trash2,
 } from 'lucide-react';
@@ -413,21 +415,24 @@ export default function DeveloperPage() {
                           </td>
                           {canManage && (
                             <td className="whitespace-nowrap px-4 py-3 text-right">
-                              <div className="inline-flex flex-wrap justify-end gap-2">
+                              <div className="inline-flex justify-end gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => handleToggleStatus(key)}
-                                  className="rounded-lg border border-navy-200 px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                                  title={key.status === 'active' ? 'Deactivate' : 'Activate'}
+                                  aria-label={key.status === 'active' ? 'Deactivate' : 'Activate'}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-navy-200 text-navy-700 hover:bg-navy-50"
                                 >
-                                  {key.status === 'active' ? 'Deactivate' : 'Activate'}
+                                  {key.status === 'active' ? <PowerOff size={16} /> : <Power size={16} />}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setDeleteTarget(key)}
-                                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+                                  title="Delete"
+                                  aria-label="Delete"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
                                 >
-                                  <Trash2 size={14} />
-                                  Delete
+                                  <Trash2 size={16} />
                                 </button>
                               </div>
                             </td>
