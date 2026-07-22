@@ -332,38 +332,40 @@ export default function DeveloperPage() {
                 <Spinner size={32} className="text-cyan-600" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="space-y-6">
                 {canManage && (
                   <form onSubmit={handleCreate} className="space-y-4 rounded-xl border border-cyan-100 bg-cyan-50/30 p-4">
                     <p className="text-sm font-medium text-navy-900">Create new key</p>
 
-                    <label className="block">
-                      <span className="mb-1.5 block text-sm font-medium text-navy-700">Integration name</span>
-                      <input
-                        className="w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
-                        value={form.name}
-                        onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                        placeholder="HR system, asset tracker..."
-                        required
-                      />
-                    </label>
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1.5 block text-sm font-medium text-navy-700">Integration name</span>
+                        <input
+                          className="w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
+                          value={form.name}
+                          onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                          placeholder="HR system, asset tracker..."
+                          required
+                        />
+                      </label>
 
-                    <label className="block">
-                      <span className="mb-1.5 block text-sm font-medium text-navy-700">Allowed server IPs / CIDR</span>
-                      <textarea
-                        className="min-h-[88px] w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
-                        value={form.ipWhitelist}
-                        onChange={(e) => setForm((p) => ({ ...p, ipWhitelist: e.target.value }))}
-                        placeholder={'*\n# or restrict:\n# 203.0.113.10\n# 198.51.100.0/24'}
-                      />
-                      <span className="mt-1 block text-xs text-navy-500">
-                        One IP or CIDR per line. Use <code>*</code> or leave blank to allow any IP (recommended for presence agents).
-                      </span>
-                    </label>
+                      <label className="block">
+                        <span className="mb-1.5 block text-sm font-medium text-navy-700">Allowed server IPs / CIDR</span>
+                        <textarea
+                          className="min-h-[88px] w-full rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm"
+                          value={form.ipWhitelist}
+                          onChange={(e) => setForm((p) => ({ ...p, ipWhitelist: e.target.value }))}
+                          placeholder={'*\n# or restrict:\n# 203.0.113.10\n# 198.51.100.0/24'}
+                        />
+                        <span className="mt-1 block text-xs text-navy-500">
+                          One IP or CIDR per line. Use <code>*</code> or leave blank to allow any IP (recommended for presence agents).
+                        </span>
+                      </label>
+                    </div>
 
                     <div>
                       <p className="mb-2 text-sm font-medium text-navy-700">Scopes</p>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
                         {EXTERNAL_API_SCOPES.map((scope) => (
                           <label key={scope.key} className="flex items-start gap-2 rounded-lg border border-navy-100 bg-white px-3 py-2">
                             <input
@@ -385,7 +387,7 @@ export default function DeveloperPage() {
                       type="submit"
                       loading={saving}
                       loadingLabel="Creating..."
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-500"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-500"
                     >
                       <PlusCircle size={16} />
                       Create API key
@@ -393,7 +395,7 @@ export default function DeveloperPage() {
                   </form>
                 )}
 
-                <div className={canManage ? '' : 'lg:col-span-2'}>
+                <div>
                   <p className="mb-3 text-sm font-medium text-navy-900">
                     {keys.length === 0 ? 'No keys yet' : `${keys.length} key${keys.length === 1 ? '' : 's'}`}
                   </p>
@@ -403,63 +405,82 @@ export default function DeveloperPage() {
                       Create a key to share inventory data with another system.
                     </p>
                   ) : (
-                    <div className="grid grid-cols-1 gap-3 max-h-[640px] overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                      {keys.map((key) => {
-                        const scopes = Array.isArray(key.scopes) ? key.scopes : [];
-                        const ipWhitelist = Array.isArray(key.ipWhitelist) ? key.ipWhitelist : [];
-                        return (
-                          <div key={key.id} className="rounded-xl border border-navy-100 bg-white p-4">
-                            <div className="flex flex-col gap-3">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <KeyRound size={15} className="shrink-0 text-cyan-600" />
-                                    <p className="truncate font-semibold text-navy-900">{key.name}</p>
-                                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${key.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-navy-100 text-navy-600'}`}>
-                                      {key.status}
-                                    </span>
+                    <div className="overflow-x-auto rounded-xl border border-navy-100">
+                      <table className="min-w-full divide-y divide-navy-100 text-sm">
+                        <thead className="bg-navy-50">
+                          <tr className="text-left text-xs font-semibold uppercase tracking-wide text-navy-500">
+                            <th className="px-4 py-3">Name</th>
+                            <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3">Prefix</th>
+                            <th className="px-4 py-3">Scopes</th>
+                            <th className="px-4 py-3">Whitelist</th>
+                            <th className="px-4 py-3">Last used</th>
+                            <th className="px-4 py-3">Created</th>
+                            {canManage && <th className="px-4 py-3 text-right">Actions</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-navy-50 bg-white">
+                          {keys.map((key) => {
+                            const scopes = Array.isArray(key.scopes) ? key.scopes : [];
+                            const ipWhitelist = Array.isArray(key.ipWhitelist) ? key.ipWhitelist : [];
+                            return (
+                              <tr key={key.id} className="text-navy-800 hover:bg-navy-50/60">
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2 min-w-[140px]">
+                                    <KeyRound size={14} className="shrink-0 text-cyan-600" />
+                                    <span className="font-medium text-navy-900">{key.name}</span>
                                   </div>
-                                  <p className="mt-1 text-xs text-navy-600">
-                                    Prefix: <code>{key.maskedKey}</code>
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="space-y-1 text-xs text-navy-500">
-                                <p><span className="font-medium text-navy-600">Scopes:</span> {scopes.join(', ') || '—'}</p>
-                                <p className="break-words">
-                                  <span className="font-medium text-navy-600">Whitelist:</span> {ipWhitelist.join(', ') || '—'}
-                                </p>
-                                <p>
-                                  <span className="font-medium text-navy-600">Last used:</span> {formatDateTime(key.lastUsedAt)}
-                                  {' · '}
-                                  <span className="font-medium text-navy-600">Created:</span> {formatDateTime(key.createdAt)}
-                                </p>
-                              </div>
-
-                              {canManage && (
-                                <div className="flex flex-wrap gap-2 border-t border-navy-100 pt-3">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleStatus(key)}
-                                    className="rounded-lg border border-navy-200 px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50"
-                                  >
-                                    {key.status === 'active' ? 'Deactivate' : 'Activate'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setDeleteTarget(key)}
-                                    className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
-                                  >
-                                    <Trash2 size={14} />
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${key.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-navy-100 text-navy-600'}`}>
+                                    {key.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <code className="text-xs text-navy-700">{key.maskedKey}</code>
+                                </td>
+                                <td className="px-4 py-3 max-w-[220px]">
+                                  <span className="block truncate text-xs text-navy-600" title={scopes.join(', ') || '—'}>
+                                    {scopes.join(', ') || '—'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 max-w-[160px]">
+                                  <span className="block truncate text-xs text-navy-600" title={ipWhitelist.join(', ') || '—'}>
+                                    {ipWhitelist.join(', ') || '—'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-xs text-navy-600">
+                                  {formatDateTime(key.lastUsedAt)}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-xs text-navy-600">
+                                  {formatDateTime(key.createdAt)}
+                                </td>
+                                {canManage && (
+                                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                                    <div className="inline-flex flex-wrap justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleStatus(key)}
+                                        className="rounded-lg border border-navy-200 px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                                      >
+                                        {key.status === 'active' ? 'Deactivate' : 'Activate'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setDeleteTarget(key)}
+                                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+                                      >
+                                        <Trash2 size={14} />
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
