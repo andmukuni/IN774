@@ -38,6 +38,8 @@ const MonitorListPage = lazy(() => import('./pages/admin/MonitorListPage'));
 const MonitorFormPage = lazy(() => import('./pages/admin/MonitorFormPage'));
 const MonitorShowPage = lazy(() => import('./pages/admin/MonitorShowPage'));
 const PresenceListPage = lazy(() => import('./pages/admin/PresenceListPage'));
+const RiskOverviewPage = lazy(() => import('./pages/admin/RiskOverviewPage'));
+const RiskAssessmentPage = lazy(() => import('./pages/admin/RiskAssessmentPage'));
 
 function RouteLoader() {
   return (
@@ -154,6 +156,8 @@ export default function App() {
               <Route path="monitor/:id/edit" element={<MonitorFormPage />} />
               <Route path="monitor/:id" element={<MonitorShowPage />} />
               <Route path="presence" element={<PresenceListPage />} />
+              <Route path="risk" element={<RiskOverviewPage />} />
+              <Route path="risk/assessments/:id" element={<RiskAssessmentPage />} />
               <Route path="developer" element={<DeveloperPage />} />
               <Route path="access-control" element={<DemoAccessControlPage />} />
             </Route>

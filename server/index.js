@@ -21,6 +21,7 @@ import { createExternalRouter } from './routes/external.js';
 import { createDeveloperRouter } from './routes/developer.js';
 import { createMonitorRouter } from './routes/monitor.js';
 import { createPresenceRouter } from './routes/presence.js';
+import { createRiskRouter } from './routes/risk.js';
 import { loadBrandedIndexHtml } from './utils/htmlMetaHelpers.js';
 import { startMonitorScheduler } from './utils/monitorScheduler.js';
 import { startPresenceScheduler } from './utils/presenceScheduler.js';
@@ -141,6 +142,7 @@ app.use('/api/v1', createExternalRouter());
 app.use('/api/admin/developer', createDeveloperRouter());
 app.use('/api/admin/monitor', createMonitorRouter());
 app.use('/api/admin/presence', createPresenceRouter());
+app.use('/api/admin/risk', createRiskRouter());
 app.use('/api/admin', createAdminRouter());
 app.use('/api/public', createPublicRouter());
 
