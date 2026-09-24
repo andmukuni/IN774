@@ -19,6 +19,8 @@ export const ADMIN_PERMISSIONS = [
   { key: 'monitor.view', name: 'View servers & DB monitor', group: 'System' },
   { key: 'monitor.manage', name: 'Manage servers & DB monitor', group: 'System' },
   { key: 'presence.view', name: 'View PC presence', group: 'System' },
+  { key: 'risk.view', name: 'View cybersecurity self-assessment', group: 'System' },
+  { key: 'risk.manage', name: 'Manage cybersecurity self-assessment', group: 'System' },
   { key: 'developer.view', name: 'View developer tools', group: 'Developer' },
   { key: 'developer.manage', name: 'Manage external API keys', group: 'Developer' },
 ];
@@ -69,6 +71,8 @@ export const NAV_PERMISSION_MAP = {
   monitor: 'monitor.view',
   'monitor-create': 'monitor.manage',
   presence: 'presence.view',
+  risk: 'risk.view',
+  'risk-manage': 'risk.manage',
   'access-control': 'rbac.manage',
   developer: 'developer.view',
   'developer-api': 'developer.manage',

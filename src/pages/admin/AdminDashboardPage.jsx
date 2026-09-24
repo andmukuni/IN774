@@ -2,6 +2,7 @@ import { PageHeader, Card, DataTable } from '../../components/ui';
 import InventoryWelcomeCard from '../../components/admin/InventoryWelcomeCard';
 import MonitorDashboardKpis from '../../components/admin/MonitorDashboardKpis';
 import MonitorDashboardTargets from '../../components/admin/MonitorDashboardTargets';
+import RiskPostureCard from '../../components/admin/RiskPostureCard';
 import { productStatusHtml, skuHtml, qtyHtml, dateHtml, currencyHtml } from '../../utils/datatableHelpers';
 
 const recentColumns = [
@@ -43,6 +44,8 @@ export default function AdminDashboardPage() {
       />
 
       <InventoryWelcomeCard />
+
+      <RiskPostureCard />
 
       <MonitorDashboardKpis />
 
