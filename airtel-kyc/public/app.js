@@ -31,7 +31,7 @@ function parseZambiaMsisdn(input) {
   if (digits.startsWith('00')) digits = digits.slice(2);
   if (digits.startsWith('260')) digits = digits.slice(3);
   if (digits.startsWith('0')) digits = digits.slice(1);
-  if (!/^[79]\d{8}$/.test(digits)) return null;
+  if (!/^[579]\d{8}$/.test(digits)) return null;
   const prefix = digits.slice(0, 2);
   return {
     national: digits,

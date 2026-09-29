@@ -7,7 +7,7 @@ export function parseZambiaMsisdn(input) {
   if (digits.startsWith('260')) digits = digits.slice(3);
   if (digits.startsWith('0')) digits = digits.slice(1);
 
-  if (!/^[79]\d{8}$/.test(digits)) {
+  if (!/^[579]\d{8}$/.test(digits)) {
     return {
       ok: false,
       error: 'Enter a Zambian mobile number, for example 0971234567.',
