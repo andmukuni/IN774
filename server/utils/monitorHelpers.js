@@ -1,6 +1,21 @@
 import crypto from 'crypto';
 import pool from '../db.js';
+import { decryptSecretAtRest, encryptSecretAtRest } from '../securityHelpers.js';
 import { publishMonitorEvent } from './monitorEvents.js';
+
+function secretEncryptionKey() {
+  return String(process.env.AUTH_TOKEN_SECRET || process.env.JWT_SECRET || '').trim();
+}
+
+function encryptDbPassword(plain) {
+  const value = String(plain || '');
+  if (!value) return null;
+  return encryptSecretAtRest(value, secretEncryptionKey()) || value;
+}
+
+function decryptDbPassword(stored) {
+  return decryptSecretAtRest(String(stored || ''), secretEncryptionKey());
+}
 
 export const MONITOR_TYPES = ['http', 'tcp', 'mysql'];
 export const MONITOR_STATUSES = ['unknown', 'up', 'down'];
@@ -116,7 +131,7 @@ function mapTargetRow(row, { includeSecrets = false } = {}) {
     updatedAt: row.updated_at,
   };
   if (includeSecrets) {
-    data.dbPassword = row.db_password || null;
+    data.dbPassword = decryptDbPassword(row.db_password) || null;
   }
   return data;
 }
@@ -421,7 +436,7 @@ export async function createMonitorTarget(body) {
       input.allowPrivateNetwork ? 1 : 0,
       input.dbName,
       input.dbUser,
-      input.dbPassword ? String(input.dbPassword) : null,
+      encryptDbPassword(input.dbPassword),
       input.notifyEmail,
     ],
   );
@@ -429,13 +444,19 @@ export async function createMonitorTarget(body) {
 }
 
 export async function updateMonitorTarget(id, body) {
-  const existing = await getMonitorTarget(id, { includeSecrets: true });
+  const [[row]] = await pool.query('SELECT * FROM monitor_targets WHERE id = ? LIMIT 1', [id]);
+  if (!row) {
+    throw httpError('Monitor target not found.', 404);
+  }
+  const existing = mapTargetRow(row, { includeSecrets: true });
   const input = validateTargetInput(body, { isUpdate: true, existing });
 
-  let nextPassword = existing.dbPassword;
+  let nextPassword = row.db_password;
   if (input.type === 'mysql') {
     if (input.dbPassword !== undefined && input.dbPassword !== null && String(input.dbPassword).length) {
-      nextPassword = String(input.dbPassword);
+      nextPassword = encryptDbPassword(input.dbPassword);
+    } else if (nextPassword && !String(nextPassword).startsWith('enc:v1:')) {
+      nextPassword = encryptDbPassword(decryptDbPassword(nextPassword)) || nextPassword;
     }
   } else {
     nextPassword = null;

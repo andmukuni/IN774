@@ -12,14 +12,14 @@ import {
   INTAKE_EMPLOYEE_DEVICE_TYPES,
   buildDeviceName,
   resolveBrandId,
-  resolveEmployeeCode,
-  resolveBranchByName,
+  findActiveBranchByName,
   findEmployeeByContact,
   fetchEmployeeIntakeDevices,
 } from '../utils/intakeHelpers.js';
 import { logProductRegistration, PRODUCT_EVENT_TYPES } from '../utils/productEventHelpers.js';
 import { getPublicSettings } from '../utils/systemSettingsHelpers.js';
 import {
+  assertIntakeWriteToken,
   ensureReminderTables,
   markReminderSubmitted,
   resolveReminderToken,
@@ -90,8 +90,17 @@ export function createPublicRouter() {
         return res.status(400).json({ ok: false, message: 'Branch name is required.' });
       }
 
-      const branch = await resolveBranchByName(name);
-      res.status(201).json({ ok: true, data: mapPublicBranchRow({
+      const intakeAuth = await assertIntakeWriteToken(
+        clipString(req.body?.reminderToken || req.body?.token, 200),
+      );
+      const branch = await findActiveBranchByName(name);
+      if (intakeAuth.branchId !== branch.id) {
+        return res.status(403).json({
+          ok: false,
+          message: 'This reminder link is for a different branch.',
+        });
+      }
+      res.json({ ok: true, data: mapPublicBranchRow({
         id: branch.id,
         code: branch.code,
         name: branch.name,
@@ -311,6 +320,8 @@ export function createPublicRouter() {
         reminderToken = '',
       } = req.body || {};
 
+      const intakeAuth = await assertIntakeWriteToken(clipString(reminderToken, 200));
+
       if (!Array.isArray(devices) || !Array.isArray(printers)) {
         return res.status(400).json({ ok: false, message: 'Devices and printers must be arrays.' });
       }
@@ -334,63 +345,43 @@ export function createPublicRouter() {
         return res.status(400).json({ ok: false, message: 'Branch not found.' });
       }
 
-      let resolvedEmployeeId = clipString(employeeId, 90) || null;
+      if (intakeAuth.branchId !== branch.id) {
+        return res.status(403).json({
+          ok: false,
+          message: 'This reminder link is for a different branch.',
+        });
+      }
 
-      if (!resolvedEmployeeId) {
-        const emp = newEmployee || {};
-        const firstName = clipString(emp.firstName, 120);
-        const lastName = clipString(emp.lastName, 120);
-        if (!firstName || !lastName) {
-          return res.status(400).json({ ok: false, message: 'First and last name are required.' });
-        }
+      const requestedEmployeeId = clipString(employeeId, 90);
+      if (requestedEmployeeId && requestedEmployeeId !== intakeAuth.employeeId) {
+        return res.status(403).json({
+          ok: false,
+          message: 'This reminder link does not match the selected employee.',
+        });
+      }
 
-        const email = clipString(emp.email, 255);
-        const phone = clipString(emp.phone, 60);
-        const existingEmployee = await findEmployeeByContact(branch.id, { email, phone });
+      const resolvedEmployeeId = intakeAuth.employeeId;
+      const [[employee]] = await pool.query(
+        'SELECT id, branch_id FROM employees WHERE id = ? AND status = \'active\' LIMIT 1',
+        [resolvedEmployeeId],
+      );
+      if (!employee || employee.branch_id !== branch.id) {
+        return res.status(400).json({ ok: false, message: 'Selected employee does not belong to this branch.' });
+      }
 
-        if (existingEmployee) {
-          resolvedEmployeeId = existingEmployee.id;
-        } else {
-          const code = await resolveEmployeeCode(emp.employeeCode);
-          resolvedEmployeeId = `emp-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-          await pool.query(
-            `INSERT INTO employees (id, employee_code, first_name, last_name, email, phone, job_title, branch_id, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-            [
-              resolvedEmployeeId,
-              code,
-              firstName,
-              lastName,
-              email,
-              phone,
-              clipString(emp.jobTitle, 120),
-              branch.id,
-            ],
-          );
-        }
-      } else {
-        const [[employee]] = await pool.query(
-          'SELECT id, branch_id FROM employees WHERE id = ? AND status = \'active\' LIMIT 1',
-          [resolvedEmployeeId],
+      const emp = newEmployee || {};
+      const nextPhone = clipString(emp.phone, 60);
+      const nextEmail = clipString(emp.email, 255);
+      const nextJobTitle = clipString(emp.jobTitle, 120);
+      if (nextPhone || nextEmail || nextJobTitle) {
+        await pool.query(
+          `UPDATE employees
+           SET phone = CASE WHEN ? != '' THEN ? ELSE phone END,
+               email = CASE WHEN ? != '' THEN ? ELSE email END,
+               job_title = CASE WHEN ? != '' THEN ? ELSE job_title END
+           WHERE id = ?`,
+          [nextPhone, nextPhone, nextEmail, nextEmail, nextJobTitle, nextJobTitle, resolvedEmployeeId],
         );
-        if (!employee || employee.branch_id !== branch.id) {
-          return res.status(400).json({ ok: false, message: 'Selected employee does not belong to this branch.' });
-        }
-
-        const emp = newEmployee || {};
-        const nextPhone = clipString(emp.phone, 60);
-        const nextEmail = clipString(emp.email, 255);
-        const nextJobTitle = clipString(emp.jobTitle, 120);
-        if (nextPhone || nextEmail || nextJobTitle) {
-          await pool.query(
-            `UPDATE employees
-             SET phone = CASE WHEN ? != '' THEN ? ELSE phone END,
-                 email = CASE WHEN ? != '' THEN ? ELSE email END,
-                 job_title = CASE WHEN ? != '' THEN ? ELSE job_title END
-             WHERE id = ?`,
-            [nextPhone, nextPhone, nextEmail, nextEmail, nextJobTitle, nextJobTitle, resolvedEmployeeId],
-          );
-        }
       }
 
       const brandNameById = new Map();

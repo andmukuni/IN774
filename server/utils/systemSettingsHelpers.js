@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS = {
   [SETTING_KEYS.COMPANY_NAME]: String(process.env.VITE_COMPANY_NAME || 'Goodfellow Inventory').trim(),
   [SETTING_KEYS.SUPPORT_EMAIL]: '',
   [SETTING_KEYS.SUPPORT_PHONE]: '',
-  [SETTING_KEYS.INTAKE_ENABLED]: 'true',
+  [SETTING_KEYS.INTAKE_ENABLED]: 'false',
   [SETTING_KEYS.INTAKE_INTRO_TEXT]:
     'Select your branch to report computers and printers in use at your location.',
   [SETTING_KEYS.SMTP_ENABLED]: 'false',
@@ -76,7 +76,7 @@ function mapSettingsRow(rows = []) {
     companyName: map[SETTING_KEYS.COMPANY_NAME] || DEFAULT_SETTINGS[SETTING_KEYS.COMPANY_NAME],
     supportEmail: map[SETTING_KEYS.SUPPORT_EMAIL] || '',
     supportPhone: map[SETTING_KEYS.SUPPORT_PHONE] || '',
-    intakeEnabled: parseBool(map[SETTING_KEYS.INTAKE_ENABLED], true),
+    intakeEnabled: parseBool(map[SETTING_KEYS.INTAKE_ENABLED], false),
     intakeIntroText: map[SETTING_KEYS.INTAKE_INTRO_TEXT] || DEFAULT_SETTINGS[SETTING_KEYS.INTAKE_INTRO_TEXT],
     smtpEnabled: parseBool(map[SETTING_KEYS.SMTP_ENABLED], false),
     smtpHost: map[SETTING_KEYS.SMTP_HOST] || '',
