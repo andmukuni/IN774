@@ -97,6 +97,7 @@ export default function SystemSettingsPage() {
     setError('');
     try {
       const res = await fetch(`${API_BASE}/admin/settings`, {
+        credentials: 'include',
         headers: getAdminAuthHeaders(),
         cache: 'no-store',
       });
@@ -128,6 +129,7 @@ export default function SystemSettingsPage() {
     try {
       const res = await fetch(`${API_BASE}/admin/settings`, {
         method: 'PUT',
+        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',

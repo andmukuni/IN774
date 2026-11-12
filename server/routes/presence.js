@@ -5,6 +5,7 @@ import {
   listPresenceDevices,
 } from '../utils/presenceHelpers.js';
 import { addPresenceStreamClient, sendPresenceStreamEvent } from '../utils/presenceEvents.js';
+import { sendRouteError } from '../securityHelpers.js';
 
 function parseListQuery(query = {}) {
   const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
@@ -31,7 +32,7 @@ export function createPresenceRouter() {
         },
       });
     } catch (error) {
-      res.status(error?.status || 500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -40,7 +41,7 @@ export function createPresenceRouter() {
       const data = await getPresenceSummary();
       res.json({ ok: true, data });
     } catch (error) {
-      res.status(error?.status || 500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -85,7 +86,7 @@ export function createPresenceRouter() {
         at: new Date().toISOString(),
       });
     } catch (error) {
-      sendPresenceStreamEvent(res, 'error', { message: error.message });
+      sendPresenceStreamEvent(res, 'error', { message: 'Unable to load presence snapshot.' });
       cleanup();
       res.end();
     }
@@ -99,7 +100,7 @@ export function createPresenceRouter() {
       }
       res.json({ ok: true, data });
     } catch (error) {
-      res.status(error?.status || 500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 

@@ -60,6 +60,7 @@ export default function DemoUsersPage() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/users`, {
+          credentials: 'include',
           headers: getAdminAuthHeaders(),
           cache: 'no-store',
         });

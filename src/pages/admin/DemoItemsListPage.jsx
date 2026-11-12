@@ -89,8 +89,8 @@ export default function DemoItemsListPage() {
       try {
         const headers = getAdminAuthHeaders();
         const [branchRes, brandRes] = await Promise.all([
-          fetch(`${API_BASE}/admin/branches?limit=100`, { headers, cache: 'no-store' }),
-          fetch(`${API_BASE}/admin/brands?limit=100`, { headers, cache: 'no-store' }),
+          fetch(`${API_BASE}/admin/branches?limit=100`, { credentials: 'include', headers, cache: 'no-store' }),
+          fetch(`${API_BASE}/admin/brands?limit=100`, { credentials: 'include', headers, cache: 'no-store' }),
         ]);
         const branchJson = await branchRes.json().catch(() => ({}));
         const brandJson = await brandRes.json().catch(() => ({}));

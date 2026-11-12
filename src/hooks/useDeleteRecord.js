@@ -16,6 +16,7 @@ export function useDeleteRecord(endpoint, { redirectTo, successMessage = 'Record
 
     const res = await fetch(`${API_BASE}${endpoint}/${encodeURIComponent(recordId)}`, {
       method: 'DELETE',
+      credentials: 'include',
       headers: getAdminAuthHeaders(),
     });
     const json = await res.json().catch(() => ({}));

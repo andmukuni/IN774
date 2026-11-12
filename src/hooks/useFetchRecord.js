@@ -27,6 +27,7 @@ export function useFetchRecord(endpoint, id) {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}${endpoint}/${encodeURIComponent(recordId)}`, {
+          credentials: 'include',
           headers: getAdminAuthHeaders(),
           cache: 'no-store',
         });

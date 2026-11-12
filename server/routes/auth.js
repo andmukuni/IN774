@@ -1,11 +1,19 @@
 import express from 'express';
 import pool from '../db.js';
 import { hashPassword, verifyPassword } from '../auth.js';
-import { rateLimitByKey } from '../securityHelpers.js';
+import {
+  clearAuthCookie,
+  limitJsonBody,
+  rateLimitByKey,
+  setAuthCookie,
+} from '../securityHelpers.js';
 import {
   loadUserAdminPermissions,
   userCanAccessAdmin,
 } from '../rbacService.js';
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const APP_URL = String(process.env.APP_URL || process.env.SERVICE_URL_GFL_INVENTORY || '').trim();
 
 function mapAuthSessionUser(user) {
   return {
@@ -28,6 +36,13 @@ export function createAuthRouter({ authService }) {
     getKey: (req) => req.ip || 'unknown',
   });
 
+  router.use(limitJsonBody(16 * 1024));
+
+  router.post('/logout', (req, res) => {
+    clearAuthCookie(res, { isProduction: IS_PRODUCTION, appUrl: APP_URL });
+    return res.json({ ok: true });
+  });
+
   router.post('/login', rateLimitAuth, async (req, res) => {
     try {
       const { email, password } = req.body || {};
@@ -35,8 +50,12 @@ export function createAuthRouter({ authService }) {
         return res.status(400).json({ ok: false, message: 'Email and password are required.' });
       }
 
-      const normalizedEmail = String(email).trim().toLowerCase();
-      const [[user]] = await pool.query('SELECT * FROM users WHERE email = ?', [normalizedEmail]);
+      const normalizedEmail = String(email).trim().toLowerCase().slice(0, 255);
+      const [[user]] = await pool.query(
+        `SELECT id, name, email, phone, role, email_verified, password_hash
+         FROM users WHERE email = ? LIMIT 1`,
+        [normalizedEmail],
+      );
 
       const verification = user ? verifyPassword(password, user.password_hash) : { valid: false, needsUpgrade: false };
       if (!user || !verification.valid) {
@@ -72,7 +91,8 @@ export function createAuthRouter({ authService }) {
         canAccessAdmin,
       });
 
-      return res.json({ ok: true, data: sessionUser, token });
+      setAuthCookie(res, token, { isProduction: IS_PRODUCTION, appUrl: APP_URL });
+      return res.json({ ok: true, data: sessionUser });
     } catch (error) {
       console.error('[auth/login]', error.message);
       return res.status(500).json({ ok: false, message: 'Login failed. Please try again.' });

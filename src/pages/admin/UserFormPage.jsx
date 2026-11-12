@@ -34,6 +34,7 @@ export default function UserFormPage() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/users/${id}`, {
+          credentials: 'include',
           headers: getAdminAuthHeaders(),
         });
         const json = await res.json().catch(() => ({}));
@@ -80,6 +81,7 @@ export default function UserFormPage() {
 
       const res = await fetch(`${API_BASE}/admin/users${isEdit ? `/${id}` : ''}`, {
         method: isEdit ? 'PUT' : 'POST',
+        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',
@@ -150,6 +152,7 @@ export default function UserFormPage() {
                 onChange={(e) => update('password', e.target.value)}
                 required={!isEdit}
                 placeholder={isEdit ? 'Leave blank to keep current' : ''}
+                helpText="At least 10 characters, with letters and numbers."
               />
             </div>
 

@@ -40,6 +40,7 @@ export function useMonitorStream({ enabled = true, onSnapshot, onError }) {
       while (!cancelled) {
         try {
           const res = await fetch(`${API_BASE}/admin/monitor/stream`, {
+            credentials: 'include',
             headers: {
               ...getAdminAuthHeaders(),
               Accept: 'text/event-stream',

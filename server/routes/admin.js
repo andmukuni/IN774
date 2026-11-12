@@ -2,6 +2,12 @@ import express from 'express';
 import crypto from 'crypto';
 import pool from '../db.js';
 import { hashPassword } from '../auth.js';
+import {
+  clipString,
+  normalizeUserRole,
+  sendRouteError,
+  validatePasswordStrength,
+} from '../securityHelpers.js';
 import { loadUserAdminPermissions } from '../rbacService.js';
 import { parseTableQuery, buildOrderClause, buildPaginatedResponse } from '../utils/tableQuery.js';
 import { computeProductStatus, mapProductRow, PRODUCT_JOIN_SQL, PRODUCT_SELECT_FIELDS } from '../utils/inventoryHelpers.js';
@@ -583,7 +589,7 @@ export function createAdminRouter() {
       const data = await fetchInventoryStats();
       res.json({ ok: true, data });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -593,7 +599,7 @@ export function createAdminRouter() {
       const data = await fetchSystemOverview({ appUrl });
       res.json({ ok: true, data });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -620,7 +626,7 @@ export function createAdminRouter() {
       const overview = await fetchSystemOverview({ appUrl });
       res.json({ ok: true, data: { ...overview, settings } });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -635,7 +641,7 @@ export function createAdminRouter() {
         },
       });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -673,7 +679,7 @@ export function createAdminRouter() {
         filename,
       });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -706,7 +712,7 @@ export function createAdminRouter() {
 
       return res.json({ ok: true, data });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -721,7 +727,7 @@ export function createAdminRouter() {
       const [result] = await pool.query(`DELETE FROM products WHERE id IN (${placeholders})`, ids);
       res.json({ ok: true, deleted: Number(result?.affectedRows || 0) });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -746,7 +752,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, updated: Number(result?.affectedRows || 0), status });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -764,7 +770,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, data });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -826,7 +832,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A product with this S/N already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -921,7 +927,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A product with this S/N already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -939,7 +945,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -984,7 +990,7 @@ export function createAdminRouter() {
         filename,
       });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1024,7 +1030,7 @@ export function createAdminRouter() {
 
       return res.json({ ok: true, data });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1066,7 +1072,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, deleted, skipped });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1090,7 +1096,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, updated: Number(result?.affectedRows || 0), status });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1112,7 +1118,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, data: mapBranchRow(row) });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1155,7 +1161,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A branch with this code already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1210,7 +1216,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A branch with this code already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1240,7 +1246,7 @@ export function createAdminRouter() {
       await pool.query('DELETE FROM branches WHERE id = ?', [id]);
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1274,7 +1280,7 @@ export function createAdminRouter() {
         filename,
       });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1307,7 +1313,7 @@ export function createAdminRouter() {
 
       return res.json({ ok: true, data });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1349,7 +1355,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, deleted, skipped });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1373,7 +1379,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, updated: Number(result?.affectedRows || 0), status });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1395,7 +1401,7 @@ export function createAdminRouter() {
 
       return res.json({ ok: true, data: mapBrandRow(row) });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1433,7 +1439,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A brand with this code already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1478,7 +1484,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A brand with this code already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1508,7 +1514,7 @@ export function createAdminRouter() {
       await pool.query('DELETE FROM brands WHERE id = ?', [id]);
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1542,7 +1548,7 @@ export function createAdminRouter() {
         filename,
       });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1575,7 +1581,7 @@ export function createAdminRouter() {
 
       return res.json({ ok: true, data });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1620,7 +1626,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, deleted, skipped });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1644,7 +1650,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, updated: Number(result?.affectedRows || 0), status });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1666,7 +1672,7 @@ export function createAdminRouter() {
 
       return res.json({ ok: true, data: mapProductTypeRow(row) });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1706,7 +1712,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A product type with this code already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1768,7 +1774,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A product type with this code already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1801,7 +1807,7 @@ export function createAdminRouter() {
       await pool.query('DELETE FROM product_types WHERE id = ?', [id]);
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1852,7 +1858,7 @@ export function createAdminRouter() {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       return res.send(`\uFEFF${csv}`);
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1893,7 +1899,7 @@ export function createAdminRouter() {
 
       return res.json({ ok: true, data });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1920,7 +1926,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, deleted: existingIds.length });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1944,7 +1950,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, updated: Number(result?.affectedRows || 0), status });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -1997,7 +2003,7 @@ export function createAdminRouter() {
         },
       });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -2055,7 +2061,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'An employee with this code already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -2123,7 +2129,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'An employee with this code already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -2143,7 +2149,7 @@ export function createAdminRouter() {
       await pool.query('DELETE FROM employees WHERE id = ?', [id]);
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -2152,7 +2158,7 @@ export function createAdminRouter() {
       const [[row]] = await pool.query('SELECT COUNT(*) AS count FROM users');
       res.json({ ok: true, count: Number(row?.count || 0) });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -2210,7 +2216,7 @@ export function createAdminRouter() {
         filename,
       });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -2221,7 +2227,7 @@ export function createAdminRouter() {
       );
       res.json({ ok: true, data: rows });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -2243,7 +2249,7 @@ export function createAdminRouter() {
 
       res.json({ ok: true, data: row });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -2260,13 +2266,19 @@ export function createAdminRouter() {
         return res.status(400).json({ ok: false, message: 'Name, email, and password are required.' });
       }
 
+      const passwordError = validatePasswordStrength(password);
+      if (passwordError) {
+        return res.status(400).json({ ok: false, message: passwordError });
+      }
+
       const id = `usr-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
       const passwordHash = hashPassword(String(password));
+      const safeRole = normalizeUserRole(role);
 
       await pool.query(
         `INSERT INTO users (id, name, email, password_hash, role, email_verified)
          VALUES (?, ?, ?, ?, ?, 0)`,
-        [id, String(name).trim(), String(email).trim().toLowerCase(), passwordHash, String(role).trim() || 'user'],
+        [id, clipString(name, 255), clipString(email, 255).toLowerCase(), passwordHash, safeRole],
       );
 
       const [[row]] = await pool.query(
@@ -2278,7 +2290,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A user with this email already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -2305,16 +2317,24 @@ export function createAdminRouter() {
         return res.status(400).json({ ok: false, message: 'Name and email are required.' });
       }
 
+      const safeName = clipString(name, 255);
+      const safeEmail = clipString(email, 255).toLowerCase();
+      const safeRole = normalizeUserRole(role);
+
       if (password) {
+        const passwordError = validatePasswordStrength(password);
+        if (passwordError) {
+          return res.status(400).json({ ok: false, message: passwordError });
+        }
         const passwordHash = hashPassword(String(password));
         await pool.query(
           'UPDATE users SET name = ?, email = ?, role = ?, password_hash = ? WHERE id = ?',
-          [String(name).trim(), String(email).trim().toLowerCase(), String(role).trim() || 'user', passwordHash, id],
+          [safeName, safeEmail, safeRole, passwordHash, id],
         );
       } else {
         await pool.query(
           'UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?',
-          [String(name).trim(), String(email).trim().toLowerCase(), String(role).trim() || 'user', id],
+          [safeName, safeEmail, safeRole, id],
         );
       }
 
@@ -2327,7 +2347,7 @@ export function createAdminRouter() {
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A user with this email already exists.' });
       }
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -2350,7 +2370,7 @@ export function createAdminRouter() {
       await pool.query('DELETE FROM user_admin_roles WHERE user_id = ?', [id]);
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 
@@ -2367,7 +2387,7 @@ export function createAdminRouter() {
       const permissions = await loadUserAdminPermissions(pool, user.id, { legacyRole: user.role });
       res.json({ ok: true, data: { permissions } });
     } catch (error) {
-      res.status(500).json({ ok: false, message: error.message });
+      return sendRouteError(res, error);
     }
   });
 

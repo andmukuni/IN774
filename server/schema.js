@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { ensureDatabase } from './db.js';
 import pool from './db.js';
 import { hashPassword } from './auth.js';
+import { validatePasswordStrength } from './securityHelpers.js';
 import { ensureRbacTables, seedRbac } from './rbacService.js';
 import { computeProductStatus } from './utils/inventoryHelpers.js';
 import { ensureProductEventsTable, backfillProductEvents } from './utils/productEventHelpers.js';
@@ -153,6 +154,12 @@ export async function seedDefaultAdmin() {
 
   if (IS_PRODUCTION && (!process.env.DEFAULT_ADMIN_EMAIL || !process.env.DEFAULT_ADMIN_PASSWORD || ADMIN_PASSWORD === 'admin123')) {
     throw new Error('DEFAULT_ADMIN_EMAIL and a non-default DEFAULT_ADMIN_PASSWORD are required before seeding the first production admin.');
+  }
+  if (IS_PRODUCTION) {
+    const passwordError = validatePasswordStrength(ADMIN_PASSWORD);
+    if (passwordError) {
+      throw new Error(`DEFAULT_ADMIN_PASSWORD is too weak: ${passwordError}`);
+    }
   }
 
   const id = `usr-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;

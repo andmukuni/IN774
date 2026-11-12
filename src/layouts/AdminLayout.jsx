@@ -259,6 +259,7 @@ export default function AdminLayout() {
     const load = async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/products/counts`, {
+          credentials: 'include',
           headers: getAdminAuthHeaders(),
           cache: 'no-store',
         });

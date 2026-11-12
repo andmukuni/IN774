@@ -47,6 +47,7 @@ export default function InventoryWelcomeCard() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/dashboard/stats`, {
+          credentials: 'include',
           headers: getAdminAuthHeaders(),
           cache: 'no-store',
         });

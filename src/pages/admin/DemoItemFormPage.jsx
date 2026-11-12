@@ -39,9 +39,9 @@ export default function DemoItemFormPage() {
       try {
         const headers = getAdminAuthHeaders();
         const [empRes, brandRes, typeRes] = await Promise.all([
-          fetch(`${API_BASE}/admin/employees?limit=100&status=active`, { headers }),
-          fetch(`${API_BASE}/admin/brands?limit=100&status=active`, { headers }),
-          fetch(`${API_BASE}/admin/product-types?limit=100&status=active`, { headers }),
+          fetch(`${API_BASE}/admin/employees?limit=100&status=active`, { credentials: 'include', headers }),
+          fetch(`${API_BASE}/admin/brands?limit=100&status=active`, { credentials: 'include', headers }),
+          fetch(`${API_BASE}/admin/product-types?limit=100&status=active`, { credentials: 'include', headers }),
         ]);
         const [empJson, brandJson, typeJson] = await Promise.all([
           empRes.json().catch(() => ({})),
@@ -71,6 +71,7 @@ export default function DemoItemFormPage() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/items/${id}`, {
+          credentials: 'include',
           headers: getAdminAuthHeaders(),
         });
         const json = await res.json().catch(() => ({}));
@@ -128,6 +129,7 @@ export default function DemoItemFormPage() {
 
       const res = await fetch(`${API_BASE}/admin/items${isEdit ? `/${id}` : ''}`, {
         method: isEdit ? 'PUT' : 'POST',
+        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',

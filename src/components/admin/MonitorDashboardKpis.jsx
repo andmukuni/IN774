@@ -140,6 +140,7 @@ export default function MonitorDashboardKpis() {
     if (!canView) return;
     try {
       const res = await fetch(`${API_BASE}/admin/monitor`, {
+        credentials: 'include',
         headers: getAdminAuthHeaders(),
         cache: 'no-store',
       });

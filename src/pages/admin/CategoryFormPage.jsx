@@ -29,6 +29,7 @@ export default function CategoryFormPage() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/product-types/${id}`, {
+          credentials: 'include',
           headers: getAdminAuthHeaders(),
         });
         const json = await res.json().catch(() => ({}));
@@ -63,6 +64,7 @@ export default function CategoryFormPage() {
     try {
       const res = await fetch(`${API_BASE}/admin/product-types${isEdit ? `/${id}` : ''}`, {
         method: isEdit ? 'PUT' : 'POST',
+        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',

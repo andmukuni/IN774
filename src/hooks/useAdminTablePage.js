@@ -60,6 +60,7 @@ export function useAdminTablePage({
       if (deleteTarget.mode === 'bulk') {
         const res = await fetch(`${API_BASE}${bulkDeletePath}`, {
           method: 'POST',
+          credentials: 'include',
           headers: {
             ...getAdminAuthHeaders(),
             'Content-Type': 'application/json',
@@ -80,6 +81,7 @@ export function useAdminTablePage({
       } else if (deleteTarget.id && singleDeletePath) {
         const res = await fetch(`${API_BASE}${singleDeletePath}/${deleteTarget.id}`, {
           method: 'DELETE',
+          credentials: 'include',
           headers: getAdminAuthHeaders(),
         });
         const json = await res.json().catch(() => ({}));
@@ -120,6 +122,7 @@ export function useAdminTablePage({
     try {
       const res = await fetch(`${API_BASE}${bulkStatusPath}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',

@@ -18,6 +18,7 @@ export async function downloadAdminExport({
   const url = `${API_BASE}${path}${searchParams.size ? `${sep}${searchParams.toString()}` : ''}`;
 
   const res = await fetch(url, {
+    credentials: 'include',
     headers: getAdminAuthHeaders(),
     cache: 'no-store',
   });

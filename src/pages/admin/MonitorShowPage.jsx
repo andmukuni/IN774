@@ -58,8 +58,9 @@ export default function MonitorShowPage() {
       const from = new Date(Date.now() - reportDays * 24 * 60 * 60 * 1000).toISOString();
       const to = new Date().toISOString();
       const [detailRes, reportRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/monitor/${id}`, { headers: getAdminAuthHeaders(), cache: 'no-store' }),
+        fetch(`${API_BASE}/admin/monitor/${id}`, { credentials: 'include', headers: getAdminAuthHeaders(), cache: 'no-store' }),
         fetch(`${API_BASE}/admin/monitor/${id}/report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, {
+          credentials: 'include',
           headers: getAdminAuthHeaders(),
           cache: 'no-store',
         }),
@@ -88,6 +89,7 @@ export default function MonitorShowPage() {
     try {
       const res = await fetch(`${API_BASE}/admin/monitor/${id}/check`, {
         method: 'POST',
+        credentials: 'include',
         headers: getAdminAuthHeaders(),
       });
       const json = await res.json().catch(() => ({}));
@@ -104,6 +106,7 @@ export default function MonitorShowPage() {
   const handleDelete = async () => {
     const res = await fetch(`${API_BASE}/admin/monitor/${id}`, {
       method: 'DELETE',
+      credentials: 'include',
       headers: getAdminAuthHeaders(),
     });
     const json = await res.json().catch(() => ({}));

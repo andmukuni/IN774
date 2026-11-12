@@ -70,6 +70,7 @@ export default function EmployeeRemindersListPage() {
 
   const loadBranches = useCallback(async () => {
     const res = await fetch(`${API_BASE}/admin/branches?limit=100`, {
+      credentials: 'include',
       headers: getAdminAuthHeaders(),
       cache: 'no-store',
     });
@@ -85,6 +86,7 @@ export default function EmployeeRemindersListPage() {
       const params = new URLSearchParams();
       if (nextBranchId) params.set('branchId', nextBranchId);
       const res = await fetch(`${API_BASE}/admin/reminders/preview?${params.toString()}`, {
+        credentials: 'include',
         headers: getAdminAuthHeaders(),
         cache: 'no-store',
       });
@@ -112,6 +114,7 @@ export default function EmployeeRemindersListPage() {
     try {
       const res = await fetch(`${API_BASE}/admin/reminders/sessions`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',

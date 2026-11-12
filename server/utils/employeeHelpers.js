@@ -16,3 +16,21 @@ export function mapEmployeeRow(row = {}) {
     updatedAt: row.updated_at,
   };
 }
+
+export function toPublicEmployee(employee) {
+  if (!employee) return null;
+  return {
+    id: employee.id,
+    firstName: employee.firstName,
+    lastName: employee.lastName,
+    fullName: employee.fullName,
+    jobTitle: employee.jobTitle,
+    branchId: employee.branchId,
+    branchName: employee.branchName,
+    status: employee.status,
+  };
+}
+
+export function mapPublicEmployeeRow(row = {}) {
+  return toPublicEmployee(mapEmployeeRow(row));
+}

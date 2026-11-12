@@ -1,4 +1,9 @@
 import pool, { testConnection } from '../db.js';
+import { decryptSecretAtRest, encryptSecretAtRest } from '../securityHelpers.js';
+
+function secretEncryptionKey() {
+  return String(process.env.AUTH_TOKEN_SECRET || process.env.JWT_SECRET || '').trim();
+}
 
 export const SETTING_KEYS = {
   COMPANY_NAME: 'company_name',
@@ -100,7 +105,7 @@ export async function getSmtpCredentials(db = pool) {
   );
   return {
     ...settings,
-    smtpPassword: String(row?.setting_value || '').trim(),
+    smtpPassword: decryptSecretAtRest(String(row?.setting_value || '').trim(), secretEncryptionKey()),
   };
 }
 
@@ -148,11 +153,12 @@ export async function updateSettings(patch = {}, db = pool) {
   if ('smtpPassword' in patch) {
     const nextPassword = String(patch.smtpPassword ?? '').trim();
     if (nextPassword) {
+      const storedPassword = encryptSecretAtRest(nextPassword, secretEncryptionKey()) || nextPassword;
       await db.query(
         `INSERT INTO system_settings (setting_key, setting_value)
          VALUES (?, ?)
          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
-        [SETTING_KEYS.SMTP_PASSWORD, nextPassword],
+        [SETTING_KEYS.SMTP_PASSWORD, storedPassword],
       );
     }
   }
