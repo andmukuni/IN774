@@ -149,7 +149,30 @@ export function buildDeviceName({ type, brandName, model = '' }) {
   return parts.join(' ') || type || 'Device';
 }
 
-export async function findActiveBranchByName(name) {
+function slugifyBranchCode(name) {
+  const slug = String(name || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24);
+  return slug || 'BRANCH';
+}
+
+async function generateUniqueBranchCode(name) {
+  const base = slugifyBranchCode(name);
+  let code = `GFL-${base}`;
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = attempt === 0 ? code : `${code}-${attempt + 1}`;
+    const [[dup]] = await pool.query('SELECT id FROM branches WHERE code = ? LIMIT 1', [candidate]);
+    if (!dup) return candidate;
+  }
+
+  return `GFL-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+}
+
+export async function resolveBranchByName(name) {
   const trimmed = String(name || '').trim();
   if (!trimmed) {
     const err = new Error('Branch name is required.');
@@ -166,7 +189,18 @@ export async function findActiveBranchByName(name) {
   );
   if (existing) return mapBranchRow(existing);
 
-  const err = new Error('Branch not found. Select a branch from the list.');
-  err.status = 404;
-  throw err;
+  const code = await generateUniqueBranchCode(trimmed);
+  const id = `brn-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+
+  await pool.query(
+    `INSERT INTO branches (id, code, name, city, address, phone, manager_name, status)
+     VALUES (?, ?, ?, '', '', '', '', 'active')`,
+    [id, code, trimmed],
+  );
+
+  const [[row]] = await pool.query(
+    'SELECT id, code, name, city, address, phone, manager_name, status, updated_at FROM branches WHERE id = ?',
+    [id],
+  );
+  return mapBranchRow(row);
 }

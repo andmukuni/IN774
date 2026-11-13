@@ -733,7 +733,7 @@ export default function BranchIntakePage() {
   const [printers, setPrinters] = useState([]);
   const [snHelpOpen, setSnHelpOpen] = useState(false);
   const [publicSettings, setPublicSettings] = useState({
-    intakeEnabled: false,
+    intakeEnabled: true,
     intakeIntroText: 'Select your branch to report computers and printers in use.',
     supportEmail: '',
     supportPhone: '',
@@ -963,7 +963,7 @@ export default function BranchIntakePage() {
     const res = await fetch(`${API_BASE}/public/branches/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, reminderToken: reminderToken || undefined }),
+      body: JSON.stringify({ name }),
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json?.ok) {
@@ -974,7 +974,7 @@ export default function BranchIntakePage() {
     setBranch(resolved);
     upsertBranchInList(resolved);
     return resolved;
-  }, [branch, branches, reminderToken, upsertBranchInList]);
+  }, [branch, branches, upsertBranchInList]);
 
   const employeeFullName = `${employee.firstName} ${employee.lastName}`.trim();
 
@@ -1188,20 +1188,6 @@ export default function BranchIntakePage() {
         <h2 className="text-lg font-bold text-navy-900">Reporting temporarily unavailable</h2>
         <p className="mt-2 text-sm text-navy-600">
           Branch equipment reporting is currently disabled. Please contact your administrator
-          {publicSettings.supportEmail ? ` at ${publicSettings.supportEmail}` : ''}
-          {publicSettings.supportPhone ? ` or ${publicSettings.supportPhone}` : ''}.
-        </p>
-      </div>
-    );
-  }
-
-  if (!String(searchParams.get('t') || reminderToken || '').trim()) {
-    return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
-        <h2 className="text-lg font-bold text-navy-900">Reminder link required</h2>
-        <p className="mt-2 text-sm text-navy-600">
-          Open the reminder link from your email to report equipment. If you do not have a link,
-          contact your administrator
           {publicSettings.supportEmail ? ` at ${publicSettings.supportEmail}` : ''}
           {publicSettings.supportPhone ? ` or ${publicSettings.supportPhone}` : ''}.
         </p>

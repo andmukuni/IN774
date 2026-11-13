@@ -513,7 +513,7 @@ export default function DeveloperPage() {
               placeholder={'*\n# or restrict:\n# 203.0.113.10\n# 198.51.100.0/24'}
             />
             <span className="mt-1 block text-xs text-navy-500">
-              One IP or CIDR per line. Use <code>*</code> or leave blank to allow any IP for read/heartbeat keys. Enrollment (<code>presence.enroll</code>) requires a specific IP or CIDR — not <code>*</code>.
+              One IP or CIDR per line. Use <code>*</code> or leave blank to allow any IP (recommended for presence agents).
             </span>
           </label>
 

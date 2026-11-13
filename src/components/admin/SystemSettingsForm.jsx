@@ -26,7 +26,7 @@ export default function SystemSettingsForm({
     companyName: '',
     supportEmail: '',
     supportPhone: '',
-    intakeEnabled: false,
+    intakeEnabled: true,
     intakeIntroText: '',
   });
   const [copied, setCopied] = useState(false);
@@ -37,7 +37,7 @@ export default function SystemSettingsForm({
       companyName: settings.companyName || '',
       supportEmail: settings.supportEmail || '',
       supportPhone: settings.supportPhone || '',
-      intakeEnabled: settings.intakeEnabled === true,
+      intakeEnabled: settings.intakeEnabled !== false,
       intakeIntroText: settings.intakeIntroText || '',
     });
   }, [settings]);
@@ -99,7 +99,7 @@ export default function SystemSettingsForm({
 
         <Field
           label="Intake URL"
-          hint="Staff must open a reminder email link to submit. This URL only loads the form."
+          hint="Share this link with branch staff to report equipment."
         >
           <div className="flex items-stretch gap-2">
             <input
@@ -139,7 +139,7 @@ export default function SystemSettingsForm({
           <span>
             <span className="block text-sm font-medium text-navy-900">Enable branch intake form</span>
             <span className="mt-0.5 block text-xs text-navy-500">
-              When enabled, staff can submit only via a reminder email link. Anonymous writes are rejected.
+              When disabled, staff cannot submit new equipment reports.
             </span>
           </span>
         </label>

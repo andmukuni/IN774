@@ -512,58 +512,6 @@ export async function listReminderDeliveries(sessionId, { limit = 25, offset = 0
   };
 }
 
-export async function assertIntakeWriteToken(token, db = pool) {
-  const raw = String(token || '').trim();
-  if (!raw) {
-    const err = new Error('Open the reminder link from your email to submit this form.');
-    err.status = 403;
-    throw err;
-  }
-
-  const tokenHash = hashReminderToken(raw);
-  const [[delivery]] = await db.query(
-    `SELECT id, status, token_expires_at, employee_id
-     FROM reminder_deliveries
-     WHERE token_hash = ?
-     LIMIT 1`,
-    [tokenHash],
-  );
-
-  if (!delivery) {
-    const err = new Error('This reminder link is invalid or has expired.');
-    err.status = 403;
-    throw err;
-  }
-
-  if (new Date(delivery.token_expires_at).getTime() < Date.now()) {
-    const err = new Error('This reminder link has expired. Please contact your branch manager for a new link.');
-    err.status = 410;
-    throw err;
-  }
-
-  if (delivery.status === 'failed') {
-    const err = new Error('This reminder could not be delivered. Please contact support.');
-    err.status = 400;
-    throw err;
-  }
-
-  const [[employee]] = await db.query(
-    `SELECT id, branch_id FROM employees WHERE id = ? AND status = 'active' LIMIT 1`,
-    [delivery.employee_id],
-  );
-  if (!employee) {
-    const err = new Error('This reminder link is no longer valid.');
-    err.status = 403;
-    throw err;
-  }
-
-  return {
-    deliveryId: delivery.id,
-    employeeId: employee.id,
-    branchId: employee.branch_id,
-  };
-}
-
 export async function resolveReminderToken(token, { ipAddress = null, userAgent = null } = {}, db = pool) {
   const tokenHash = hashReminderToken(token);
   const [[delivery]] = await db.query(

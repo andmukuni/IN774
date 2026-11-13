@@ -325,12 +325,6 @@ export function getClientIp(req, { trustProxy = false } = {}) {
   return normalizeIpAddress(req.ip || req.socket?.remoteAddress || '');
 }
 
-export function isUnrestrictedIpWhitelist(whitelist = []) {
-  const entries = (whitelist || []).map((value) => normalizeIpAddress(value)).filter(Boolean);
-  if (!entries.length) return true;
-  return entries.some((entry) => isAllowAllIpEntry(entry));
-}
-
 export function isIpAllowed(clientIp, whitelist = []) {
   const entries = (whitelist || []).map((value) => normalizeIpAddress(value)).filter(Boolean);
 

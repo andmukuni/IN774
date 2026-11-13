@@ -6,8 +6,7 @@
  *   npm run seed:presence-key
  *
  * Prints the raw key once — store it in agent config.json on each PC.
- * Heartbeat key uses 0.0.0.0/0 so office PCs with dynamic IPs can report in.
- * Create a separate presence.enroll key with office CIDRs for the installer.
+ * Uses 0.0.0.0/0 whitelist so office PCs with dynamic IPs can report in.
  */
 
 import dotenv from 'dotenv';
@@ -23,7 +22,7 @@ const { ensureApiKeysTable, createApiKey, listApiKeys } = await import('../serve
 
 await ensureApiKeysTable();
 
-const REQUIRED_SCOPES = ['presence.report'];
+const REQUIRED_SCOPES = ['presence.report', 'presence.enroll'];
 
 const existing = (await listApiKeys()).find(
   (key) => (
@@ -53,8 +52,6 @@ console.log('Created GFL Presence API key:\n');
 console.log(`  Name:   ${data.name}`);
 console.log(`  Scopes: ${data.scopes.join(', ')}`);
 console.log(`  Key:    ${data.apiKey}`);
-console.log('\nThis key is heartbeat-only (presence.report). Create a separate');
-console.log('presence.enroll key with office CIDRs in Admin → Developer for installers.');
 console.log('\nAdd to agent config.json:');
 console.log(JSON.stringify({
   apiUrl: 'https://your-formgfl-domain.com/api/v1/presence/heartbeat',
