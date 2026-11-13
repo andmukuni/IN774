@@ -103,8 +103,8 @@ export default function DeveloperPage() {
     try {
       const headers = getAdminAuthHeaders();
       const [metaRes, keysRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/developer/meta`, { credentials: 'include', headers, cache: 'no-store' }),
-        fetch(`${API_BASE}/admin/developer/api-keys`, { credentials: 'include', headers, cache: 'no-store' }),
+        fetch(`${API_BASE}/admin/developer/meta`, { headers, cache: 'no-store' }),
+        fetch(`${API_BASE}/admin/developer/api-keys`, { headers, cache: 'no-store' }),
       ]);
       const [metaJson, keysJson] = await Promise.all([
         metaRes.json().catch(() => ({})),
@@ -148,7 +148,6 @@ export default function DeveloperPage() {
 
       const res = await fetch(`${API_BASE}/admin/developer/api-keys`, {
         method: 'POST',
-        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',
@@ -179,7 +178,6 @@ export default function DeveloperPage() {
       const nextStatus = key.status === 'active' ? 'inactive' : 'active';
       const res = await fetch(`${API_BASE}/admin/developer/api-keys/${key.id}`, {
         method: 'PUT',
-        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',
@@ -201,7 +199,6 @@ export default function DeveloperPage() {
     try {
       const res = await fetch(`${API_BASE}/admin/developer/api-keys/${deleteTarget.id}`, {
         method: 'DELETE',
-        credentials: 'include',
         headers: getAdminAuthHeaders(),
       });
       const json = await res.json().catch(() => ({}));

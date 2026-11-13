@@ -28,7 +28,6 @@ export default function BrandFormPage() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/brands/${id}`, {
-          credentials: 'include',
           headers: getAdminAuthHeaders(),
         });
         const json = await res.json().catch(() => ({}));
@@ -62,7 +61,6 @@ export default function BrandFormPage() {
     try {
       const res = await fetch(`${API_BASE}/admin/brands${isEdit ? `/${id}` : ''}`, {
         method: isEdit ? 'PUT' : 'POST',
-        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',

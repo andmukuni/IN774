@@ -12,13 +12,3 @@ export function mapBranchRow(row = {}) {
     updatedAt: row.updated_at,
   };
 }
-
-export function mapPublicBranchRow(row = {}) {
-  return {
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    city: row.city || '',
-    status: row.status || 'active',
-  };
-}

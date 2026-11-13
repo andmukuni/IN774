@@ -32,7 +32,6 @@ export default function BranchFormPage() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/branches/${id}`, {
-          credentials: 'include',
           headers: getAdminAuthHeaders(),
         });
         const json = await res.json().catch(() => ({}));
@@ -70,7 +69,6 @@ export default function BranchFormPage() {
     try {
       const res = await fetch(`${API_BASE}/admin/branches${isEdit ? `/${id}` : ''}`, {
         method: isEdit ? 'PUT' : 'POST',
-        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',

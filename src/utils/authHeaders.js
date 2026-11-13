@@ -40,9 +40,8 @@ export function purgeInvalidAuthState() {
   const adminSession = readJsonStorage('mm_auth_session');
 
   if (adminToken && isBearerTokenExpired(adminToken)) {
-    localStorage.removeItem('mm_admin_token');
-  }
-  if (adminSession?.expiresAt && Date.now() > Number(adminSession.expiresAt)) {
+    clearAdminAuthStorage();
+  } else if (adminSession?.expiresAt && Date.now() > Number(adminSession.expiresAt)) {
     clearAdminAuthStorage();
   }
 }
@@ -53,16 +52,6 @@ export function getAdminAuthHeaders(extra = {}) {
   return {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...extra,
-  };
-}
-
-export function getAdminFetchInit(extra = {}) {
-  const { headers: extraHeaders, ...rest } = extra;
-  return {
-    credentials: 'include',
-    cache: 'no-store',
-    ...rest,
-    headers: getAdminAuthHeaders(extraHeaders || {}),
   };
 }
 

@@ -85,7 +85,6 @@ export default function EmployeesListPage() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/branches?limit=100`, {
-          credentials: 'include',
           headers: getAdminAuthHeaders(),
           cache: 'no-store',
         });

@@ -6,7 +6,6 @@ import {
   updateApiKey,
 } from '../utils/apiKeyHelpers.js';
 import { EXTERNAL_API_SCOPES } from '../../shared/externalApiScopes.js';
-import { sendRouteError } from '../securityHelpers.js';
 
 export function createDeveloperRouter() {
   const router = express.Router();
@@ -27,7 +26,7 @@ export function createDeveloperRouter() {
         },
       });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -36,7 +35,7 @@ export function createDeveloperRouter() {
       const data = await listApiKeys();
       res.json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -52,7 +51,7 @@ export function createDeveloperRouter() {
       });
       res.status(201).json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -61,7 +60,7 @@ export function createDeveloperRouter() {
       const data = await updateApiKey(req.params.id, req.body || {});
       res.json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -70,7 +69,7 @@ export function createDeveloperRouter() {
       await deleteApiKey(req.params.id);
       res.json({ ok: true });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 

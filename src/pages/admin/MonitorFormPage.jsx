@@ -39,7 +39,6 @@ export default function MonitorFormPage() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/monitor/${id}`, {
-          credentials: 'include',
           headers: getAdminAuthHeaders(),
         });
         const json = await res.json().catch(() => ({}));
@@ -92,7 +91,6 @@ export default function MonitorFormPage() {
       }
       const res = await fetch(`${API_BASE}/admin/monitor${isEdit ? `/${id}` : ''}`, {
         method: isEdit ? 'PUT' : 'POST',
-        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',

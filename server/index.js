@@ -6,11 +6,7 @@ import { fileURLToPath } from 'url';
 import { promises as fs } from 'fs';
 import { createAuthService } from './auth.js';
 import { bootstrapDatabase } from './schema.js';
-import {
-  applySecurityHeaders,
-  evaluateCorsOrigin,
-  requestOriginAllowed,
-} from './securityHelpers.js';
+import { evaluateCorsOrigin } from './securityHelpers.js';
 import {
   ALL_PERMISSION_KEYS,
   permissionMatches,
@@ -55,9 +51,8 @@ const appUrl = String(process.env.APP_URL || coolifyServiceUrl || '').trim().rep
 const serverOrigin = appUrl || undefined;
 
 const app = express();
-app.disable('x-powered-by');
 
-if (process.env.TRUST_PROXY === '1') {
+if (process.env.TRUST_PROXY === '1' || IS_PRODUCTION) {
   app.set('trust proxy', 1);
 }
 
@@ -67,8 +62,9 @@ const authService = createAuthService({
   allPermissionKeys: ALL_PERMISSION_KEYS,
 });
 
-app.use((req, res, next) => {
-  applySecurityHeaders(req, res, { isProduction: IS_PRODUCTION });
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   next();
 });
 
@@ -82,7 +78,7 @@ app.use('/api', cors({
     if (result.allowed) return callback(null, true);
     return callback(new Error(result.reason || 'CORS blocked'));
   },
-  credentials: true,
+  credentials: false,
 }));
 
 app.use(express.json({ limit: '2mb' }));
@@ -111,22 +107,9 @@ app.use('/api', async (req, res, next) => {
   const auth = authService.getAdminAuth(req);
   if (!auth.ok) return authService.sendAuthFailure(res, auth);
 
-  const method = String(req.method || '').toUpperCase();
-  const unsafeMethod = !['GET', 'HEAD', 'OPTIONS'].includes(method);
-  if (auth.source === 'cookie' && unsafeMethod) {
-    const originOk = requestOriginAllowed(req, {
-      corsOrigins,
-      serverOrigin,
-      nodeEnv: process.env.NODE_ENV || 'development',
-    });
-    if (!originOk) {
-      return res.status(403).json({ ok: false, message: 'Invalid request origin.' });
-    }
-  }
-
   let perms = Array.isArray(auth.claims.permissions) ? auth.claims.permissions : [];
 
-  if (auth.source !== 'api-key' && auth.claims?.sub) {
+  if (auth.source === 'jwt' && auth.claims?.sub) {
     try {
       const [[userRow]] = await pool.query(
         'SELECT role FROM users WHERE id = ? LIMIT 1',
@@ -162,16 +145,7 @@ app.use('/api/admin', createAdminRouter());
 app.use('/api/public', createPublicRouter());
 
 const uploadsDir = path.join(__dirname, '..', 'uploads');
-app.use('/uploads', express.static(uploadsDir, {
-  dotfiles: 'deny',
-  index: false,
-  setHeaders(res) {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('Content-Disposition', 'attachment');
-    res.setHeader('Cache-Control', 'private, max-age=0, no-store');
-  },
-}));
+app.use('/uploads', express.static(uploadsDir));
 
 const LONG_LIVED_STATIC = /\.(?:webp|avif|png|jpe?g|gif|svg|ico|woff2?|css|js|map)$/i;
 

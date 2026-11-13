@@ -15,18 +15,6 @@ const API_BASE = getApiBase();
 const ADMIN_IDLE_TIMEOUT_MINUTES = Math.max(1, Number(import.meta.env.VITE_ADMIN_IDLE_TIMEOUT_MINUTES || 30));
 const ADMIN_IDLE_TIMEOUT_MS = ADMIN_IDLE_TIMEOUT_MINUTES * 60 * 1000;
 
-async function revokeServerSession() {
-  try {
-    await fetch(`${API_BASE}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-      cache: 'no-store',
-    });
-  } catch {
-    // Cookie clear is best-effort; local session is still dropped.
-  }
-}
-
 function getStoredSession() {
   try {
     purgeInvalidAuthState();
@@ -34,6 +22,11 @@ function getStoredSession() {
     if (!stored) return null;
     const session = JSON.parse(stored);
     if (session.expiresAt && Date.now() > session.expiresAt) {
+      clearAdminAuthStorage();
+      return null;
+    }
+    const adminToken = localStorage.getItem('mm_admin_token') || '';
+    if (!adminToken) {
       clearAdminAuthStorage();
       return null;
     }
@@ -68,7 +61,6 @@ export function AuthProvider({ children }) {
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
-        credentials: 'include',
         cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -95,10 +87,10 @@ export function AuthProvider({ children }) {
         permissions,
         admin_permissions: permissions,
         loggedInAt: Date.now(),
-        expiresAt: Date.now() + 12 * 60 * 60 * 1000,
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
       };
       localStorage.setItem('mm_auth_session', JSON.stringify(session));
-      localStorage.removeItem('mm_admin_token');
+      localStorage.setItem('mm_admin_token', String(json.token));
 
       const publicSession = buildPublicUserSession(userData);
       if (publicSession) {
@@ -117,7 +109,6 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(() => {
-    void revokeServerSession();
     clearAllAuthStorage();
     dispatchUserSessionSync(null);
     if (idleTimerRef.current) {
@@ -138,7 +129,6 @@ export function AuthProvider({ children }) {
       window.clearTimeout(idleTimerRef.current);
     }
     idleTimerRef.current = window.setTimeout(() => {
-      void revokeServerSession();
       clearAllAuthStorage();
       dispatchUserSessionSync(null);
       setUser(null);
@@ -212,7 +202,6 @@ export function AuthProvider({ children }) {
     if (!user?.id) return;
     try {
       const res = await fetch(`${API_BASE}/admin/rbac/me`, {
-        credentials: 'include',
         headers: getAdminAuthHeaders(),
         cache: 'no-store',
       });

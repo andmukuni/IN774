@@ -15,7 +15,6 @@ import {
   sendTableExport,
 } from '../utils/catalogExportHelpers.js';
 import { parseTableQuery, buildPaginatedResponse } from '../utils/tableQuery.js';
-import { sendRouteError } from '../securityHelpers.js';
 
 export function createReminderRouter() {
   const router = express.Router();
@@ -26,7 +25,7 @@ export function createReminderRouter() {
       const data = await previewReminderCount({ branchId });
       res.json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -62,7 +61,7 @@ export function createReminderRouter() {
         filename,
       });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -84,7 +83,7 @@ export function createReminderRouter() {
 
       res.json({ ok: true, data, pagination: { total, page: q.page, limit: q.limit } });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -97,7 +96,7 @@ export function createReminderRouter() {
       }
       res.json({ ok: true, data: session });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -117,7 +116,7 @@ export function createReminderRouter() {
 
       res.json({ ok: true, data, pagination: { total, page: q.page, limit: q.limit } });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -137,7 +136,7 @@ export function createReminderRouter() {
 
       res.status(201).json({ ok: true, data: session });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 

@@ -1,9 +1,9 @@
 import express from 'express';
 import crypto from 'crypto';
 import pool from '../db.js';
-import { clipString, limitJsonBody, rateLimitByKey, sendRouteError } from '../securityHelpers.js';
-import { mapPublicBranchRow } from '../utils/branchHelpers.js';
-import { mapPublicEmployeeRow, toPublicEmployee } from '../utils/employeeHelpers.js';
+import { rateLimitByKey } from '../securityHelpers.js';
+import { mapBranchRow } from '../utils/branchHelpers.js';
+import { mapEmployeeRow } from '../utils/employeeHelpers.js';
 import { mapBrandRow } from '../utils/brandHelpers.js';
 import { mapProductTypeRow } from '../utils/productTypeHelpers.js';
 import { mapProductRow, PRODUCT_JOIN_SQL, PRODUCT_SELECT_FIELDS, computeProductStatus } from '../utils/inventoryHelpers.js';
@@ -32,19 +32,15 @@ const intakeRateLimit = rateLimitByKey({
   getKey: (req) => req.ip || req.socket?.remoteAddress || 'unknown',
 });
 
-const MAX_INTAKE_DEVICES = 25;
-const MAX_INTAKE_PRINTERS = 10;
-
 export function createPublicRouter() {
   const router = express.Router();
-  router.use(limitJsonBody(64 * 1024));
 
   router.get('/settings', async (_req, res) => {
     try {
       const data = await getPublicSettings();
       res.json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -62,16 +58,16 @@ export function createPublicRouter() {
 
       const where = `WHERE ${clauses.join(' AND ')}`;
       const [rows] = await pool.query(
-        `SELECT id, code, name, city, status
+        `SELECT id, code, name, city, address, phone, manager_name, status, updated_at
          FROM branches ${where}
          ORDER BY name ASC
          LIMIT 100`,
         params,
       );
 
-      res.json({ ok: true, data: rows.map(mapPublicBranchRow) });
+      res.json({ ok: true, data: rows.map(mapBranchRow) });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -85,24 +81,21 @@ export function createPublicRouter() {
         });
       }
 
-      const name = clipString(req.body?.name, 120);
+      const name = String(req.body?.name || '').trim();
       if (!name) {
         return res.status(400).json({ ok: false, message: 'Branch name is required.' });
       }
 
       const branch = await resolveBranchByName(name);
-      res.status(201).json({ ok: true, data: mapPublicBranchRow({
-        id: branch.id,
-        code: branch.code,
-        name: branch.name,
-        city: branch.city,
-        status: branch.status,
-      }) });
+      res.status(201).json({ ok: true, data: branch });
     } catch (error) {
+      if (error?.status) {
+        return res.status(error.status).json({ ok: false, message: error.message });
+      }
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A branch with this code already exists.' });
       }
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -114,7 +107,7 @@ export function createPublicRouter() {
       }
 
       const [[row]] = await pool.query(
-        `SELECT id, code, name, city, status
+        `SELECT id, code, name, city, address, phone, manager_name, status, updated_at
          FROM branches WHERE code = ? AND status = 'active' LIMIT 1`,
         [code],
       );
@@ -123,9 +116,9 @@ export function createPublicRouter() {
         return res.status(404).json({ ok: false, message: 'Branch not found.' });
       }
 
-      res.json({ ok: true, data: mapPublicBranchRow(row) });
+      res.json({ ok: true, data: mapBranchRow(row) });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -141,8 +134,8 @@ export function createPublicRouter() {
       }
 
       const [rows] = await pool.query(
-        `SELECT e.id, e.first_name, e.last_name, e.job_title, e.branch_id, e.status,
-                b.name AS branch_name
+        `SELECT e.id, e.employee_code, e.first_name, e.last_name, e.email, e.phone, e.job_title, e.branch_id, e.status, e.updated_at,
+                b.code AS branch_code, b.name AS branch_name
          FROM employees e
          LEFT JOIN branches b ON b.id = e.branch_id
          WHERE e.branch_id = ? AND e.status = 'active'
@@ -150,9 +143,9 @@ export function createPublicRouter() {
         [branch.id],
       );
 
-      res.json({ ok: true, data: rows.map(mapPublicEmployeeRow) });
+      res.json({ ok: true, data: rows.map(mapEmployeeRow) });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -189,7 +182,7 @@ export function createPublicRouter() {
         },
       });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -218,7 +211,7 @@ export function createPublicRouter() {
         },
       });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -237,7 +230,7 @@ export function createPublicRouter() {
 
       res.json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -272,23 +265,19 @@ export function createPublicRouter() {
 
       const employee = await findEmployeeByContact(branch.id, { email, phone });
       const devices = employee ? await fetchEmployeeIntakeDevices(employee.id) : [];
-      const publicEmployee = employee
-        ? {
-            ...toPublicEmployee(employee),
-            email: employee.email || '',
-            phone: employee.phone || '',
-          }
-        : null;
 
       res.json({
         ok: true,
         data: {
-          employee: publicEmployee,
+          employee,
           devices,
         },
       });
     } catch (error) {
-      return sendRouteError(res, error);
+      if (error?.status) {
+        return res.status(error.status).json({ ok: false, message: error.message });
+      }
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -311,17 +300,7 @@ export function createPublicRouter() {
         reminderToken = '',
       } = req.body || {};
 
-      if (!Array.isArray(devices) || !Array.isArray(printers)) {
-        return res.status(400).json({ ok: false, message: 'Devices and printers must be arrays.' });
-      }
-      if (devices.length > MAX_INTAKE_DEVICES || printers.length > MAX_INTAKE_PRINTERS) {
-        return res.status(400).json({
-          ok: false,
-          message: `Too many devices. Maximum is ${MAX_INTAKE_DEVICES} employee devices and ${MAX_INTAKE_PRINTERS} printers.`,
-        });
-      }
-
-      const resolvedBranchId = clipString(branchId, 90);
+      const resolvedBranchId = String(branchId || '').trim();
       if (!resolvedBranchId) {
         return res.status(400).json({ ok: false, message: 'Branch is required.' });
       }
@@ -334,18 +313,18 @@ export function createPublicRouter() {
         return res.status(400).json({ ok: false, message: 'Branch not found.' });
       }
 
-      let resolvedEmployeeId = clipString(employeeId, 90) || null;
+      let resolvedEmployeeId = String(employeeId || '').trim() || null;
 
       if (!resolvedEmployeeId) {
         const emp = newEmployee || {};
-        const firstName = clipString(emp.firstName, 120);
-        const lastName = clipString(emp.lastName, 120);
+        const firstName = String(emp.firstName || '').trim();
+        const lastName = String(emp.lastName || '').trim();
         if (!firstName || !lastName) {
           return res.status(400).json({ ok: false, message: 'First and last name are required.' });
         }
 
-        const email = clipString(emp.email, 255);
-        const phone = clipString(emp.phone, 60);
+        const email = String(emp.email || '').trim();
+        const phone = String(emp.phone || '').trim();
         const existingEmployee = await findEmployeeByContact(branch.id, { email, phone });
 
         if (existingEmployee) {
@@ -363,7 +342,7 @@ export function createPublicRouter() {
               lastName,
               email,
               phone,
-              clipString(emp.jobTitle, 120),
+              String(emp.jobTitle || '').trim(),
               branch.id,
             ],
           );
@@ -378,9 +357,9 @@ export function createPublicRouter() {
         }
 
         const emp = newEmployee || {};
-        const nextPhone = clipString(emp.phone, 60);
-        const nextEmail = clipString(emp.email, 255);
-        const nextJobTitle = clipString(emp.jobTitle, 120);
+        const nextPhone = String(emp.phone || '').trim();
+        const nextEmail = String(emp.email || '').trim();
+        const nextJobTitle = String(emp.jobTitle || '').trim();
         if (nextPhone || nextEmail || nextJobTitle) {
           await pool.query(
             `UPDATE employees
@@ -400,7 +379,7 @@ export function createPublicRouter() {
       const created = { employeeDevices: [], branchPrinters: [] };
 
       for (const device of devices) {
-        const type = clipString(device.type, 40);
+        const type = String(device.type || '').trim();
         if (!INTAKE_EMPLOYEE_DEVICE_TYPES.includes(type)) continue;
 
         let brandId = null;
@@ -411,12 +390,12 @@ export function createPublicRouter() {
         }
 
         const brandName = brandId ? brandNameById.get(brandId) : '';
-        const name = clipString(device.name, 255) || buildDeviceName({
+        const name = String(device.name || '').trim() || buildDeviceName({
           type,
           brandName,
-          model: clipString(device.model, 120),
+          model: device.model,
         });
-        const sku = clipString(device.serialNumber || device.sku, 80);
+        const sku = String(device.serialNumber || device.sku || '').trim();
         if (!sku) {
           return res.status(400).json({ ok: false, message: 'Serial number (S/N) is required for each device.' });
         }
@@ -449,12 +428,12 @@ export function createPublicRouter() {
         }
 
         const brandName = brandId ? brandNameById.get(brandId) : '';
-        const name = clipString(printer.name, 255) || buildDeviceName({
+        const name = String(printer.name || '').trim() || buildDeviceName({
           type: 'Printer',
           brandName,
-          model: clipString(printer.model, 120),
+          model: printer.model,
         });
-        const sku = clipString(printer.serialNumber || printer.sku, 80);
+        const sku = String(printer.serialNumber || printer.sku || '').trim();
         if (!sku) {
           return res.status(400).json({ ok: false, message: 'Serial number (S/N) is required for each printer.' });
         }
@@ -486,16 +465,19 @@ export function createPublicRouter() {
       res.status(201).json({
         ok: true,
         data: {
-          branch: mapPublicBranchRow(branch),
+          branch: mapBranchRow(branch),
           employeeId: resolvedEmployeeId,
           created,
         },
       });
     } catch (error) {
+      if (error?.status) {
+        return res.status(error.status).json({ ok: false, message: error.message });
+      }
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ ok: false, message: 'A duplicate serial number or employee code was detected.' });
       }
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 

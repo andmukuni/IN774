@@ -1,6 +1,6 @@
 import express from 'express';
 import pool from '../db.js';
-import { rateLimitByKey, sendRouteError } from '../securityHelpers.js';
+import { rateLimitByKey } from '../securityHelpers.js';
 import { parseTableQuery, buildPaginatedResponse } from '../utils/tableQuery.js';
 import { createExternalApiAuth, createExternalIpCheckHandler } from '../middleware/externalApiAuth.js';
 import {
@@ -90,7 +90,7 @@ export function createExternalRouter() {
 
       res.json(buildPaginatedResponse(rows.map(mapExternalAsset), total, q));
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -109,7 +109,7 @@ export function createExternalRouter() {
       }
       res.json({ ok: true, data: mapExternalAsset(row) });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -168,7 +168,7 @@ export function createExternalRouter() {
       const data = rows.map((row) => mapExternalEmployee(row, { assetCount: row.asset_count }));
       res.json(buildPaginatedResponse(data, total, q));
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -190,7 +190,7 @@ export function createExternalRouter() {
       }
       res.json({ ok: true, data: mapExternalEmployee(row, { assetCount: row.asset_count }) });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -230,7 +230,7 @@ export function createExternalRouter() {
 
       res.json(buildPaginatedResponse(rows.map(mapExternalAsset), total, q));
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -239,7 +239,7 @@ export function createExternalRouter() {
       const data = await upsertHeartbeat(req.body || {});
       res.json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -248,7 +248,7 @@ export function createExternalRouter() {
       const data = await listSetupBranches();
       res.json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -257,7 +257,7 @@ export function createExternalRouter() {
       const data = await lookupSetupEmployee(req.body || {});
       res.json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -266,7 +266,7 @@ export function createExternalRouter() {
       const data = await enrollPresenceDevice(req.body || {});
       res.status(data.created ? 201 : 200).json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -310,7 +310,7 @@ export function createExternalRouter() {
 
       res.json(buildPaginatedResponse(rows.map(mapExternalAssignment), total, q));
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -343,7 +343,7 @@ export function createExternalRouter() {
 
       res.json({ ok: true, data: targets.map(mapExternalMonitorTarget) });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(500).json({ ok: false, message: error.message });
     }
   });
 
@@ -355,7 +355,7 @@ export function createExternalRouter() {
         .filter((t) => t.id === id);
       res.json({ ok: true, data: mapExternalMonitorTarget(withTelemetry || target) });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 

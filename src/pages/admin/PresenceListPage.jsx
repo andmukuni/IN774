@@ -140,12 +140,10 @@ export default function PresenceListPage() {
     try {
       const [listRes, summaryRes] = await Promise.all([
         fetch(`${API_BASE}/admin/presence?limit=200`, {
-          credentials: 'include',
           headers: getAdminAuthHeaders(),
           cache: 'no-store',
         }),
         fetch(`${API_BASE}/admin/presence/summary`, {
-          credentials: 'include',
           headers: getAdminAuthHeaders(),
           cache: 'no-store',
         }),

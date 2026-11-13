@@ -12,7 +12,6 @@ import {
 } from '../utils/monitorHelpers.js';
 import { addMonitorStreamClient, sendMonitorStreamEvent } from '../utils/monitorEvents.js';
 import { executeTargetCheck } from '../utils/monitorScheduler.js';
-import { sendRouteError } from '../securityHelpers.js';
 
 export function createMonitorRouter() {
   const router = express.Router();
@@ -22,7 +21,7 @@ export function createMonitorRouter() {
       const data = await listMonitorTargetsWithTelemetry();
       res.json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -58,7 +57,7 @@ export function createMonitorRouter() {
         at: new Date().toISOString(),
       });
     } catch (error) {
-      sendMonitorStreamEvent(res, 'error', { message: 'Unable to load monitor snapshot.' });
+      sendMonitorStreamEvent(res, 'error', { message: error.message });
       cleanup();
       res.end();
     }
@@ -70,7 +69,7 @@ export function createMonitorRouter() {
       await broadcastMonitorSnapshot();
       res.status(201).json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -80,7 +79,7 @@ export function createMonitorRouter() {
       const data = await getUptimeReport(req.params.id, { from, to });
       res.json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -91,7 +90,7 @@ export function createMonitorRouter() {
       await broadcastMonitorSnapshot();
       res.json({ ok: true, data: outcome });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -111,7 +110,7 @@ export function createMonitorRouter() {
         },
       });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -121,7 +120,7 @@ export function createMonitorRouter() {
       await broadcastMonitorSnapshot();
       res.json({ ok: true, data });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 
@@ -131,7 +130,7 @@ export function createMonitorRouter() {
       await broadcastMonitorSnapshot();
       res.json({ ok: true });
     } catch (error) {
-      return sendRouteError(res, error);
+      res.status(error?.status || 500).json({ ok: false, message: error.message });
     }
   });
 

@@ -102,7 +102,6 @@ export default function EmployeeShowPage() {
         for (const itemId of ids) {
           const res = await fetch(`${API_BASE}/admin/items/${encodeURIComponent(itemId)}`, {
             method: 'DELETE',
-            credentials: 'include',
             headers: getAdminAuthHeaders(),
           });
           const json = await res.json().catch(() => ({}));

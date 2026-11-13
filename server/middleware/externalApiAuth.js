@@ -1,8 +1,7 @@
 import { findApiKeyByRawKey, getClientIp, isIpAllowed, touchApiKeyLastUsed } from '../utils/apiKeyHelpers.js';
 import { hasExternalScope } from '../../shared/externalApiScopes.js';
-import { sendRouteError } from '../securityHelpers.js';
 
-const TRUST_PROXY = process.env.TRUST_PROXY === '1';
+const TRUST_PROXY = process.env.TRUST_PROXY === '1' || process.env.NODE_ENV === 'production';
 
 function extractApiKey(req) {
   const header = String(req.headers.authorization || '').trim();
@@ -44,7 +43,7 @@ export function createExternalApiAuth(requiredScope) {
       await touchApiKeyLastUsed(apiKey.id);
       return next();
     } catch (error) {
-      return sendRouteError(res, error);
+      return res.status(500).json({ ok: false, message: error.message });
     }
   };
 }
@@ -75,7 +74,7 @@ export function createExternalIpCheckHandler() {
         },
       });
     } catch (error) {
-      return sendRouteError(res, error);
+      return res.status(500).json({ ok: false, message: error.message });
     }
   };
 }

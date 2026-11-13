@@ -1,9 +1,4 @@
 import crypto from 'crypto';
-import {
-  AUTH_COOKIE_NAME,
-  AUTH_TOKEN_TTL_SECONDS,
-  parseCookies,
-} from './securityHelpers.js';
 
 export function timingSafeCompare(a = '', b = '') {
   const left = Buffer.from(String(a));
@@ -36,24 +31,10 @@ export function signJwtHmacSha256(payload, secret) {
   return `${signingInput}.${signature}`;
 }
 
-function decodeBase64UrlJson(value) {
-  try {
-    const padded = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
-    const buf = Buffer.from(padded, 'base64');
-    if (!buf.length) return null;
-    return JSON.parse(buf.toString('utf8'));
-  } catch {
-    return null;
-  }
-}
-
 export function verifyJwtHmacSha256(token, secret) {
   const parts = String(token || '').split('.');
   if (parts.length !== 3) return null;
   const [encodedHeader, encodedPayload, signature] = parts;
-  const header = decodeBase64UrlJson(encodedHeader);
-  if (!header || header.alg !== 'HS256') return null;
-
   const signingInput = `${encodedHeader}.${encodedPayload}`;
   const expectedSignature = crypto
     .createHmac('sha256', secret)
@@ -65,7 +46,11 @@ export function verifyJwtHmacSha256(token, secret) {
 
   if (!timingSafeCompare(signature, expectedSignature)) return null;
 
-  return decodeBase64UrlJson(encodedPayload);
+  try {
+    return JSON.parse(Buffer.from(encodedPayload, 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
 }
 
 function hashPasswordLegacy(password) {
@@ -100,38 +85,27 @@ export function getBearerToken(req) {
   return bearer.startsWith('Bearer ') ? bearer.slice(7).trim() : '';
 }
 
-export function getSessionToken(req) {
-  const bearer = getBearerToken(req);
-  if (bearer) return { token: bearer, source: 'bearer' };
-
-  const cookies = parseCookies(req.headers.cookie);
-  const cookieToken = String(cookies[AUTH_COOKIE_NAME] || '').trim();
-  if (cookieToken) return { token: cookieToken, source: 'cookie' };
-
-  return { token: '', source: '' };
-}
-
 export function createAuthService({ secret, adminApiKey = '', allPermissionKeys = [] }) {
   function getJwtAuth(req) {
-    const { token, source } = getSessionToken(req);
+    const token = getBearerToken(req);
     if (!token) {
-      return { ok: false, status: 401, message: 'Authentication required.', token: '', source };
+      return { ok: false, status: 401, message: 'Authentication required.', token: '' };
     }
 
     const claims = verifyJwtHmacSha256(token, secret);
     if (!claims?.sub) {
-      return { ok: false, status: 401, message: 'Invalid session. Please log in again.', token, source };
+      return { ok: false, status: 401, message: 'Invalid session. Please log in again.', token };
     }
 
     if (!claims.exp) {
-      return { ok: false, status: 401, message: 'Invalid session token. Please log in again.', token, source };
+      return { ok: false, status: 401, message: 'Invalid session token. Please log in again.', token };
     }
 
     if (Math.floor(Date.now() / 1000) > Number(claims.exp)) {
-      return { ok: false, status: 401, message: 'Session expired. Please log in again.', token, source };
+      return { ok: false, status: 401, message: 'Session expired. Please log in again.', token };
     }
 
-    return { ok: true, claims, token, source };
+    return { ok: true, claims, token };
   }
 
   function getAdminAuth(req) {
@@ -139,14 +113,14 @@ export function createAuthService({ secret, adminApiKey = '', allPermissionKeys 
     if (jwt.ok) {
       const perms = Array.isArray(jwt.claims.permissions) ? jwt.claims.permissions : [];
       if (jwt.claims.role === 'admin' || jwt.claims.admin === true || perms.length > 0) {
-        return { ok: true, source: jwt.source || 'jwt', claims: jwt.claims };
+        return { ok: true, source: 'jwt', claims: jwt.claims };
       }
       return { ok: false, status: 403, message: 'Administrator privileges required.' };
     }
 
     const headerKey = String(req.headers['x-admin-api-key'] || '').trim();
-    const candidate = headerKey || (jwt.source === 'bearer' ? jwt.token : '');
-    if (adminApiKey && adminApiKey.length >= 16 && candidate && timingSafeCompare(candidate, adminApiKey)) {
+    const candidate = headerKey || jwt.token;
+    if (adminApiKey && candidate && timingSafeCompare(candidate, adminApiKey)) {
       return {
         ok: true,
         source: 'api-key',
@@ -170,7 +144,7 @@ export function createAuthService({ secret, adminApiKey = '', allPermissionKeys 
 
   function signUserToken(user, { adminPermissions = [], canAccessAdmin = false } = {}) {
     const iat = Math.floor(Date.now() / 1000);
-    const exp = iat + AUTH_TOKEN_TTL_SECONDS;
+    const exp = iat + 7 * 24 * 60 * 60;
     const tokenPayload = { sub: user.id, role: user.role || 'user', iat, exp };
     if (canAccessAdmin) {
       tokenPayload.admin = true;

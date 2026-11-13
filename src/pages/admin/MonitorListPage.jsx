@@ -280,7 +280,6 @@ export default function MonitorListPage() {
     else setRefreshing(true);
     try {
       const res = await fetch(`${API_BASE}/admin/monitor`, {
-        credentials: 'include',
         headers: getAdminAuthHeaders(),
         cache: 'no-store',
       });
@@ -326,7 +325,6 @@ export default function MonitorListPage() {
     try {
       const res = await fetch(`${API_BASE}/admin/monitor/${id}/check`, {
         method: 'POST',
-        credentials: 'include',
         headers: getAdminAuthHeaders(),
       });
       const json = await res.json().catch(() => ({}));

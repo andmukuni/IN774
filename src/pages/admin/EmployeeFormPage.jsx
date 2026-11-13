@@ -34,7 +34,6 @@ export default function EmployeeFormPage() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/branches?limit=100`, {
-          credentials: 'include',
           headers: getAdminAuthHeaders(),
         });
         const json = await res.json().catch(() => ({}));
@@ -56,7 +55,6 @@ export default function EmployeeFormPage() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/admin/employees/${id}`, {
-          credentials: 'include',
           headers: getAdminAuthHeaders(),
         });
         const json = await res.json().catch(() => ({}));
@@ -103,7 +101,6 @@ export default function EmployeeFormPage() {
     try {
       const res = await fetch(`${API_BASE}/admin/employees${isEdit ? `/${id}` : ''}`, {
         method: isEdit ? 'PUT' : 'POST',
-        credentials: 'include',
         headers: {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',

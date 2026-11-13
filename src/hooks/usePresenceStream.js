@@ -40,7 +40,6 @@ export function usePresenceStream({ enabled = true, onSnapshot, onError }) {
       while (!cancelled) {
         try {
           const res = await fetch(`${API_BASE}/admin/presence/stream`, {
-            credentials: 'include',
             headers: {
               ...getAdminAuthHeaders(),
               Accept: 'text/event-stream',

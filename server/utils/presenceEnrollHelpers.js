@@ -57,16 +57,16 @@ async function findEmployeeByEmailAnywhere(email) {
   const normalizedEmail = normalizeIntakeEmail(email);
   if (!normalizedEmail) return null;
 
-  const [[row]] = await pool.query(
+  const [rows] = await pool.query(
     `SELECT e.id, e.employee_code, e.first_name, e.last_name, e.email, e.phone, e.job_title, e.branch_id, e.status, e.updated_at,
             b.code AS branch_code, b.name AS branch_name
      FROM employees e
      LEFT JOIN branches b ON b.id = e.branch_id
-     WHERE e.status = 'active' AND LOWER(TRIM(e.email)) = ?
-     LIMIT 1`,
-    [normalizedEmail],
+     WHERE e.status = 'active'`,
   );
-  return row ? mapEmployeeRow(row) : null;
+
+  const match = rows.find((row) => normalizeIntakeEmail(row.email) === normalizedEmail);
+  return match ? mapEmployeeRow(match) : null;
 }
 
 export async function listSetupBranches() {

@@ -312,7 +312,7 @@ const DataTablesWrapper = forwardRef(function DataTablesWrapper({
         const sep = ajaxUrl.includes('?') ? '&' : '?';
         const url = `${API_BASE}${ajaxUrl}${sep}${params.toString()}`;
 
-        fetch(url, { credentials: 'include', headers: getAdminAuthHeaders(), cache: 'no-store' })
+        fetch(url, { headers: getAdminAuthHeaders(), cache: 'no-store' })
           .then((res) => res.json())
           .then((json) => {
             if (generation !== ajaxGeneration) return;
